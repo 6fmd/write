@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import WysiwygEditor from './components/WysiwygEditor';
 import RawEditor from './components/RawEditor';
+import { useTheme } from './hooks/useTheme';
 import {
   listDocs, getDoc, saveDoc, deleteDoc,
   getActiveDocId, setActiveDocId, generateId, extractTitle,
@@ -21,6 +22,7 @@ export default function App() {
   const autosaveTimer = useRef(null);
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
+  const { theme, toggle: toggleTheme } = useTheme();
 
   // Load docs from localStorage on mount
   useEffect(() => {
@@ -169,6 +171,13 @@ export default function App() {
         return;
       }
 
+      // Cmd/Ctrl + Shift + R — rename current document
+      if (e.shiftKey && key === 'r' && activeDoc) {
+        e.preventDefault();
+        beginRename(activeDoc);
+        return;
+      }
+
       // Cmd/Ctrl + / — toggle shortcuts help overlay
       if (!e.shiftKey && key === '/') {
         e.preventDefault();
@@ -179,7 +188,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeydown, true);
     return () => window.removeEventListener('keydown', handleKeydown, true);
-  }, [isMac, mode, downloadCurrentDoc, newDoc]);
+  }, [isMac, mode, downloadCurrentDoc, newDoc, activeDoc, beginRename]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -273,7 +282,7 @@ export default function App() {
           </div>
 
           {/* Bottom controls */}
-          <div style={{ padding: '0.75rem 0.75rem 0.9rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem' }}>
+          <div style={{ padding: '0.6rem 0.75rem 0.7rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button
                 onClick={() => setMode('wysiwyg')}
@@ -315,36 +324,53 @@ export default function App() {
               </button>
             )}
 
-            <button
-              onClick={downloadCurrentDoc}
-              style={{
-                ...btnStyle,
-                justifyContent: 'space-between',
-                fontSize: '0.72rem',
-                opacity: activeId ? 1 : 0.4,
-                cursor: activeId ? 'pointer' : 'default',
-              }}
-              disabled={!activeId}
-            >
-              <span>Download as .md</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
-              </span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+              <button
+                onClick={toggleTheme}
+                style={{
+                  ...iconBtnStyle,
+                  fontSize: '0.8rem',
+                  color: 'var(--text-muted)',
+                }}
+                title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              >
+                {theme === 'dark' ? '☀' : '☾'}
+              </button>
 
-            <button
-              onClick={() => setShortcutsOpen(true)}
-              style={{
-                ...btnStyle,
-                justifyContent: 'space-between',
-                fontSize: '0.72rem',
-              }}
-            >
-              <span>Keyboard shortcuts</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                {isMac ? '⌘/' : 'Ctrl/'}
-              </span>
-            </button>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <button
+                  onClick={downloadCurrentDoc}
+                  style={{
+                    ...btnStyle,
+                    justifyContent: 'space-between',
+                    fontSize: '0.72rem',
+                    opacity: activeId ? 1 : 0.4,
+                    cursor: activeId ? 'pointer' : 'default',
+                  }}
+                  disabled={!activeId}
+                >
+                  <span>Download as .md</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                    {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setShortcutsOpen(true)}
+                  style={{
+                    ...btnStyle,
+                    justifyContent: 'space-between',
+                    fontSize: '0.72rem',
+                  }}
+                >
+                  <span>Keyboard shortcuts</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                    {isMac ? '⌘/' : 'Ctrl/'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </aside>
       )}
@@ -364,7 +390,13 @@ export default function App() {
             </div>
           ) : (
             <div style={{ width: '100%', height: '100%' }}>
-              <RawEditor key={`${activeId}-${vimMode}`} content={content} onChange={handleContentChange} vimMode={vimMode} />
+              <RawEditor
+                key={`${activeId}-${vimMode}`}
+                content={content}
+                onChange={handleContentChange}
+                vimMode={vimMode}
+                theme={theme}
+              />
             </div>
           )}
         </main>
@@ -454,6 +486,9 @@ export default function App() {
 
               <span>Toggle shortcuts help</span>
               <ShortcutKeys isMac={isMac} keys={['Mod', '/']} />
+
+              <span>Rename current document</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'R']} />
             </div>
           </div>
         </div>

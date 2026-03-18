@@ -6,7 +6,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { vim } from '@replit/codemirror-vim';
 import { oneDark } from '@codemirror/theme-one-dark';
 
-export default function RawEditor({ content, onChange, vimMode }) {
+export default function RawEditor({ content, onChange, vimMode, theme }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);
@@ -29,7 +29,7 @@ export default function RawEditor({ content, onChange, vimMode }) {
       ...(vimMode ? [vim()] : []),
       history(),
       markdown(),
-      oneDark,
+      ...(theme === 'dark' ? [oneDark] : []),
       lineNumbers(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       EditorView.updateListener.of(update => {
@@ -40,7 +40,7 @@ export default function RawEditor({ content, onChange, vimMode }) {
       EditorView.theme({
         '&': { height: '100%', background: 'transparent' },
         '.cm-content': { fontFamily: 'var(--font-mono)', fontSize: '0.9rem' },
-        '.cm-gutters': { background: '#161616', borderRight: '1px solid #2a2a2a' },
+        '.cm-gutters': { background: 'var(--surface)', borderRight: '1px solid var(--border)' },
       }),
     ];
 
@@ -56,7 +56,7 @@ export default function RawEditor({ content, onChange, vimMode }) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [vimMode]); // recreate when vim mode toggles
+  }, [vimMode, theme]); // recreate when vim mode or theme toggles
 
   // Sync content in when doc changes externally
   useEffect(() => {

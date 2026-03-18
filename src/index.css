@@ -1,17 +1,29 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-  --bg: #0f0f0f;
-  --surface: #161616;
-  --border: #2a2a2a;
-  --text: #e8e6e1;
-  --text-muted: #5a5a5a;
-  --accent: #c9a96e;
-  --accent-dim: #7a6340;
-  --code-bg: #1a1a1a;
+:root,
+[data-theme="dark"] {
+  --bg:           #000000;
+  --surface:      #0a0a0a;
+  --border:       #222222;
+  --text:         #ffffff;
+  --text-muted:   #555555;
+  --accent:       #c9a96e;
+  --accent-dim:   #7a6340;
+  --code-bg:      #0d0d0d;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --font-serif: 'Lora', 'Georgia', serif;
   --font-sans: 'DM Sans', system-ui, sans-serif;
+}
+
+[data-theme="light"] {
+  --bg:           #ffffff;
+  --surface:      #f5f5f5;
+  --border:       #dddddd;
+  --text:         #000000;
+  --text-muted:   #999999;
+  --accent:       #8a6830;
+  --accent-dim:   #c9a96e;
+  --code-bg:      #f0f0f0;
 }
 
 html, body, #root {
