@@ -300,7 +300,10 @@ export default function App() {
       }
       if (e.shiftKey && key === 'e') {
         e.preventDefault();
-        setMode(prev => (prev === 'visual' ? 'raw' : 'visual'));
+        const next = mode === 'visual' ? 'raw' : 'visual';
+        setMode(next);
+        if (next === 'raw') setTimeout(() => setRawFocusToken(t => t + 1), 0);
+        else setTimeout(() => setVisualFocusToken(t => t + 1), 0);
         return;
       }
       if (e.shiftKey && key === 'v') {
@@ -312,7 +315,7 @@ export default function App() {
         }
         setMode('raw');
         setVimMode(true);
-        setRawFocusToken(t => t + 1);
+        setTimeout(() => setRawFocusToken(t => t + 1), 0);
         return;
       }
       if (e.shiftKey && key === 's') {
@@ -582,12 +585,12 @@ export default function App() {
             <div className="btn-row">
               <button
                 className={`btn-pill btn--flex${mode === 'visual' ? ' btn-pill--active' : ' btn-pill--inactive'}`}
-                onClick={() => { document.activeElement?.blur(); setMode('visual'); setVimMode(false); }}
+                onClick={() => { document.activeElement?.blur(); setMode('visual'); setVimMode(false); setTimeout(() => setVisualFocusToken(t => t + 1), 0); }}
                 title={isMac ? 'Switch to Visual (⌘⇧E)' : 'Switch to Visual (Ctrl⇧E)'}
               >Visual</button>
               <button
                 className={`btn-pill btn--flex${mode === 'raw' && !vimMode ? ' btn-pill--active' : ' btn-pill--inactive'}`}
-                onClick={() => { document.activeElement?.blur(); setMode('raw'); setVimMode(false); }}
+                onClick={() => { document.activeElement?.blur(); setMode('raw'); setVimMode(false); setTimeout(() => setRawFocusToken(t => t + 1), 0); }}
                 title={isMac ? 'Switch to Raw (⌘⇧E)' : 'Switch to Raw (Ctrl⇧E)'}
               >Raw</button>
               <button
@@ -595,7 +598,7 @@ export default function App() {
                 onClick={() => {
                   document.activeElement?.blur();
                   if (mode === 'raw' && vimMode) { setVimMode(false); setRawFocusToken(t => t + 1); }
-                  else { setMode('raw'); setVimMode(true); setRawFocusToken(t => t + 1); }
+                  else { setMode('raw'); setVimMode(true); setTimeout(() => setRawFocusToken(t => t + 1), 0); }
                 }}
                 title={isMac ? 'Raw + Vim (⌘⇧V)' : 'Raw + Vim (Ctrl⇧V)'}
               >Vim</button>
