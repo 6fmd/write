@@ -90,7 +90,7 @@ html, body, #root {
   max-width: var(--editor-max-width, 980px);
   width: 100%;
   min-height: 100%;
-  margin: 0 auto;
+  margin: 0;
   padding: 4rem 2rem;
 }
 
@@ -177,12 +177,35 @@ html, body, #root {
   font-size: 0.9rem;
   max-width: var(--editor-max-width, 980px);
   width: 100%;
-  margin: 0 auto;
+  margin: 0;
+  padding: 0 2rem;
+  background: transparent !important;
 }
 .cm-editor.cm-focused { outline: none; }
-.cm-scroller { padding: 4rem 2rem; }
+.cm-scroller { padding: 0; }
+.cm-content { padding: 4rem 0; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media print {
+  aside,
+  button[title*="sidebar"],
+  button[title*="Sidebar"] {
+    display: none !important;
+  }
+
+  html, body, #root, main, .cm-editor, .cm-scroller, .tiptap-editor {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .cm-content, .tiptap-editor {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}

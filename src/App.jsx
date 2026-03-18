@@ -11,15 +11,26 @@ const AUTOSAVE_DELAY = 800;
 
 export default function App() {
   const [docs, setDocs] = useState(() => listDocs());
+  const [maxWidthLimit, setMaxWidthLimit] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1800);
   const [wrapWidth, setWrapWidth] = useState(() => {
+    const limit = typeof window !== 'undefined' ? window.innerWidth : 1800;
     try {
       const raw = localStorage.getItem('write-md:wrapWidthPx');
       const n = raw ? Number(raw) : NaN;
-      return Number.isFinite(n) ? Math.min(1800, Math.max(520, n)) : 980;
+      return Number.isFinite(n) ? Math.min(limit, Math.max(520, n)) : Math.min(limit, 980);
     } catch {
-      return 980;
+      return Math.min(limit, 980);
     }
   });
+
+  useEffect(() => {
+    function onResize() {
+      setMaxWidthLimit(window.innerWidth);
+      setWrapWidth(prev => Math.min(window.innerWidth, Math.max(520, prev)));
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [activeId, setActiveId] = useState(() => {
     const stored = listDocs();
     const lastId = getActiveDocId();
@@ -45,6 +56,10 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [closeTargetId, setCloseTargetId] = useState(null);
+  const [defaultExportFormat, setDefaultExportFormat] = useState(() => {
+    try { return localStorage.getItem('write-md:exportFormat') || 'md'; }
+    catch { return 'md'; }
+  });
   const autosaveTimer = useRef(null);
   const closeConfirmRef = useRef(null);
   const shortcutsRef = useRef(null);
@@ -131,6 +146,14 @@ export default function App() {
     }
   }, [wrapWidth]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('write-md:exportFormat', defaultExportFormat);
+    } catch {
+      // ignore
+    }
+  }, [defaultExportFormat]);
+
   function currentTitleForDownload() {
     if (!activeDoc) return 'Untitled';
     return (activeDoc.customTitle || activeDoc.title || 'Untitled').trim() || 'Untitled';
@@ -150,6 +173,11 @@ export default function App() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadCurrentDocAsPDF() {
+    if (!activeId || !activeDoc) return;
+    window.print();
   }
 
   function beginRename(doc) {
@@ -217,7 +245,8 @@ export default function App() {
       // Cmd/Ctrl + Shift + S — download current doc
       if (e.shiftKey && key === 's') {
         e.preventDefault();
-        downloadCurrentDoc();
+        if (defaultExportFormat === 'pdf') downloadCurrentDocAsPDF();
+        else downloadCurrentDoc();
         return;
       }
 
@@ -248,11 +277,22 @@ export default function App() {
         setShortcutsOpen(prev => !prev);
         return;
       }
+
+      // Escape — focus editor if focused elsewhere
+      if (key === 'escape' && !shortcutsOpen && !closeConfirmOpen && !renamingId) {
+        const active = document.activeElement;
+        const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+        if (!isInput) {
+          e.preventDefault();
+          if (mode === 'raw') setRawFocusToken(t => t + 1);
+          else setVisualFocusToken(t => t + 1);
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeydown, true);
     return () => window.removeEventListener('keydown', handleKeydown, true);
-  }, [isMac, mode, vimMode, activeId, content, docs, downloadCurrentDoc, newDoc, activeDoc, beginRename]);
+  }, [isMac, mode, vimMode, activeId, content, docs, downloadCurrentDoc, downloadCurrentDocAsPDF, newDoc, activeDoc, beginRename, shortcutsOpen, closeConfirmOpen, renamingId, requestCloseDoc, defaultExportFormat]);
 
   // Focus the close-confirm dialog so Enter/Esc work immediately
   useEffect(() => {
@@ -282,6 +322,10 @@ export default function App() {
   }, [shortcutsOpen]);
 
   const closeTargetDoc = closeTargetId ? docs[closeTargetId] : null;
+
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const charCount = content.length;
+  const readTime = Math.max(1, Math.ceil(wordCount / 200));
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -401,35 +445,37 @@ export default function App() {
 
           {/* Bottom controls */}
           <div style={{ padding: '0.6rem 0.75rem 0.7rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
-            {/* Vim row (always present to avoid layout shift) */}
-            <button
-              onClick={() => {
-                if (mode === 'raw') setVimMode(v => !v);
-              }}
+            {/* Wrap width slider styled like a button */}
+            <div
               style={{
                 ...pillBtnStyle,
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'space-between',
-                opacity: mode === 'raw' ? 1 : 0.4,
-                cursor: mode === 'raw' ? 'pointer' : 'default',
-                borderStyle: 'dashed',
+                cursor: 'default',
               }}
-              disabled={mode !== 'raw'}
-              title={
-                mode === 'raw'
-                  ? (isMac ? 'Switch to Raw + Vim (⌘⇧V)' : 'Switch to Raw + Vim (Ctrl⇧V)')
-                  : (isMac ? 'Vim mode (Raw only) — use ⌘⇧V' : 'Vim mode (Raw only) — use Ctrl⇧V')
-              }
+              title="Max content width in pixels"
             >
-              <span>Vim mode</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: vimMode && mode === 'raw' ? 'var(--text)' : 'var(--text-muted)' }}>
-                {vimMode ? 'on' : 'off'}
+              <span style={{ color: 'var(--text-muted)' }}>Width</span>
+              <input
+                className="wrap-slider"
+                style={{ flex: 1, minWidth: 0, margin: '0 0.5rem' }}
+                type="range"
+                min={520}
+                max={Math.max(520, maxWidthLimit)}
+                step={20}
+                value={wrapWidth}
+                onChange={(e) => setWrapWidth(Number(e.target.value))}
+                aria-label="Wrap width"
+              />
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)', width: '3.5ch', textAlign: 'right' }}>
+                {wrapWidth}
               </span>
-            </button>
-
+            </div>
             {/* Mode row */}
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button
-                onClick={() => setMode('visual')}
+                onClick={() => { setMode('visual'); setVimMode(false); }}
                 style={{
                   ...pillBtnStyle,
                   flex: 1,
@@ -441,79 +487,87 @@ export default function App() {
                 Visual
               </button>
               <button
-                onClick={() => setMode('raw')}
+                onClick={() => { setMode('raw'); setVimMode(false); }}
                 style={{
                   ...pillBtnStyle,
                   flex: 1,
-                  background: mode === 'raw' ? 'var(--bg)' : 'transparent',
-                  color: mode === 'raw' ? 'var(--text)' : 'var(--text-muted)',
+                  background: mode === 'raw' && !vimMode ? 'var(--bg)' : 'transparent',
+                  color: mode === 'raw' && !vimMode ? 'var(--text)' : 'var(--text-muted)',
                 }}
                 title={isMac ? 'Switch to Raw (⌘⇧E)' : 'Switch to Raw (Ctrl⇧E)'}
               >
                 Raw
               </button>
+              <button
+                onClick={() => {
+                  if (mode === 'raw' && vimMode) {
+                    setVimMode(false);
+                    setRawFocusToken(t => t + 1);
+                  } else {
+                    setMode('raw');
+                    setVimMode(true);
+                    setRawFocusToken(t => t + 1);
+                  }
+                }}
+                style={{
+                  ...pillBtnStyle,
+                  flex: 1,
+                  background: mode === 'raw' && vimMode ? 'var(--bg)' : 'transparent',
+                  color: mode === 'raw' && vimMode ? 'var(--text)' : 'var(--text-muted)',
+                }}
+                title={isMac ? 'Raw + Vim (⌘⇧V)' : 'Raw + Vim (Ctrl⇧V)'}
+              >
+                Vim
+              </button>
             </div>
 
-            {/* Download row: full width */}
+            {/* Download row */}
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button
+                onClick={downloadCurrentDocAsPDF}
+                style={{
+                  ...pillBtnStyle,
+                  flex: 1,
+                  justifyContent: 'center',
+                  fontSize: '0.72rem',
+                  opacity: activeId ? 1 : 0.4,
+                  cursor: activeId ? 'pointer' : 'default',
+                }}
+                disabled={!activeId}
+                title="Print / Save as PDF"
+              >
+                PDF
+              </button>
+              <button
+                onClick={downloadCurrentDoc}
+                style={{
+                  ...pillBtnStyle,
+                  flex: 1,
+                  justifyContent: 'center',
+                  fontSize: '0.72rem',
+                  opacity: activeId ? 1 : 0.4,
+                  cursor: activeId ? 'pointer' : 'default',
+                }}
+                disabled={!activeId}
+                title="Download as .md"
+              >
+                MD
+              </button>
+            </div>
+
+            {/* More section at the bottom */}
             <button
-              onClick={downloadCurrentDoc}
+              onClick={() => setShortcutsOpen(true)}
               style={{
                 ...pillBtnStyle,
-                justifyContent: 'space-between',
-                fontSize: '0.72rem',
-                opacity: activeId ? 1 : 0.4,
-                cursor: activeId ? 'pointer' : 'default',
+                width: '100%',
+                justifyContent: 'center',
+                marginTop: '0.1rem'
               }}
-              disabled={!activeId}
-              title={
-                activeId
-                  ? (isMac ? 'Download current document (⌘⇧S)' : 'Download current document (Ctrl⇧S)')
-                  : 'Download current document'
-              }
+              title={isMac ? 'More options & Shortcuts (⌘/)' : 'More options & Shortcuts (Ctrl/)'}
             >
-              <span>Download as .md</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
-              </span>
+              More...
             </button>
-
-            {/* Theme + shortcuts section at the bottom */}
-            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem' }}>
-              <button
-                onClick={() => theme !== 'light' && toggleTheme()}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  background: theme === 'light' ? 'var(--bg)' : 'transparent',
-                  color: theme === 'light' ? 'var(--text)' : 'var(--text-muted)',
-                }}
-                title="Switch to light theme"
-              >
-                Light
-              </button>
-              <button
-                onClick={() => theme !== 'dark' && toggleTheme()}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  background: theme === 'dark' ? 'var(--bg)' : 'transparent',
-                  color: theme === 'dark' ? 'var(--text)' : 'var(--text-muted)',
-                }}
-                title="Switch to dark theme"
-              >
-                Dark
-              </button>
-              <button
-                onClick={() => setShortcutsOpen(true)}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                }}
-                title={isMac ? 'Show keyboard shortcuts (⌘/)' : 'Show keyboard shortcuts (Ctrl/)'}
-              >
-                Shortcuts
-              </button>
-            </div>
           </div>
         </aside>
       )}
@@ -592,46 +646,6 @@ export default function App() {
             </div>
           )}
         </main>
-
-        {activeId && (
-          <div
-            className="wrap-bar"
-            style={{
-              borderTop: '1px solid var(--border)',
-              background: 'var(--surface)',
-              padding: '0.45rem 0.9rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-            }}
-          >
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-              Wrap width
-            </div>
-            <input
-              className="wrap-slider"
-              type="range"
-              min={520}
-              max={1800}
-              step={20}
-              value={wrapWidth}
-              onChange={(e) => setWrapWidth(Number(e.target.value))}
-              aria-label="Wrap width"
-            />
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.72rem',
-                color: 'var(--text)',
-                minWidth: 84,
-                textAlign: 'right',
-              }}
-              title="Max content width in pixels"
-            >
-              {wrapWidth}px
-            </div>
-          </div>
-        )}
       </div>
 
       {!sidebarOpen && (
@@ -787,7 +801,7 @@ export default function App() {
           >
             <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
-                Keyboard shortcuts
+                More
               </div>
               <button
                 onClick={() => setShortcutsOpen(false)}
@@ -797,41 +811,91 @@ export default function App() {
                 ✕
               </button>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.85rem' }}>
+            
+            {/* Document Stats */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text)', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+              <div><strong>{wordCount}</strong> <span style={{color: 'var(--text-muted)'}}>words</span></div>
+              <div><strong>{charCount}</strong> <span style={{color: 'var(--text-muted)'}}>chars</span></div>
+              <div><strong>{readTime}</strong> <span style={{color: 'var(--text-muted)'}}>min read</span></div>
+            </div>
+
+            {/* Preferences */}
+            <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.6rem' }}>Preferences</div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                <span style={{ fontSize: '0.75rem', width: '80px', color: 'var(--text-muted)', alignSelf: 'center' }}>Theme</span>
+                <button
+                  onClick={() => theme !== 'light' && toggleTheme()}
+                  style={{ ...pillBtnStyle, flex: 1, background: theme === 'light' ? 'var(--accent)' : 'transparent', color: theme === 'light' ? 'var(--surface)' : 'var(--text)' }}
+                >Light</button>
+                <button
+                  onClick={() => theme !== 'dark' && toggleTheme()}
+                  style={{ ...pillBtnStyle, flex: 1, background: theme === 'dark' ? 'var(--accent)' : 'transparent', color: theme === 'dark' ? 'var(--surface)' : 'var(--text)' }}
+                >Dark</button>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', width: '80px', color: 'var(--text-muted)' }} title="Format for Cmd+Shift+S">Default DL</span>
+                <button
+                  onClick={() => setDefaultExportFormat('pdf')}
+                  style={{ ...pillBtnStyle, flex: 1, background: defaultExportFormat === 'pdf' ? 'var(--accent)' : 'transparent', color: defaultExportFormat === 'pdf' ? 'var(--surface)' : 'var(--text)' }}
+                >PDF</button>
+                <button
+                  onClick={() => setDefaultExportFormat('md')}
+                  style={{ ...pillBtnStyle, flex: 1, background: defaultExportFormat === 'md' ? 'var(--accent)' : 'transparent', color: defaultExportFormat === 'md' ? 'var(--surface)' : 'var(--text)' }}
+                >MD</button>
+              </div>
+            </div>
+
+            {/* Keyboard shortcuts */}
+            <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>Keyboard shortcuts</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.8rem' }}>
               {isMac ? '⌘' : 'Ctrl'} shortcuts work anywhere in the app.
             </div>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1.4fr) auto',
-                rowGap: '0.5rem',
-                columnGap: '1.25rem',
-                fontSize: '0.8rem',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '0.75rem',
               }}
             >
-              <span>New document</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'K']} />
-
-              <span>Rename current document</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'R']} />
-
-              <span>Download current document</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} />
-
-              <span>Toggle Visual / Raw</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'E']} />
-
-              <span>Raw + Vim</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'V']} />
-
-              <span>Toggle sidebar</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', '\\']} />
-
-              <span>Toggle shortcuts help</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', '/']} />
-
-              <span>Close current document</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'X']} />
+              {/* Left Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>New doc</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'K']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Rename</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'R']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Close doc</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'X']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Download ({defaultExportFormat.toUpperCase()})</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} />
+                </div>
+              </div>
+              {/* Right Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Visual/Raw</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'E']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Raw+Vim</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'V']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Sidebar</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', '\\']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>More Menu</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', '/']} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
