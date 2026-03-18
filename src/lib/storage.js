@@ -13,9 +13,18 @@ export function getDoc(id) {
   return listDocs()[id] ?? null;
 }
 
-export function saveDoc(id, { title, content, updatedAt }) {
+export function saveDoc(id, { title, content, customTitle, updatedAt }) {
   const docs = listDocs();
-  docs[id] = { id, title, content, updatedAt: updatedAt ?? new Date().toISOString() };
+  const prev = docs[id] ?? { id };
+  const next = {
+    ...prev,
+    ...(title !== undefined ? { title } : {}),
+    ...(content !== undefined ? { content } : {}),
+    ...(customTitle !== undefined ? { customTitle } : {}),
+    updatedAt: updatedAt ?? new Date().toISOString(),
+    id,
+  };
+  docs[id] = next;
   localStorage.setItem(KEY, JSON.stringify(docs));
   return docs[id];
 }

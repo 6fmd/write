@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { vim } from '@replit/codemirror-vim';
@@ -16,6 +16,16 @@ export default function RawEditor({ content, onChange, vimMode }) {
     if (!containerRef.current) return;
 
     const extensions = [
+      // Ensure our Mod-Shift-E override wins over any internal keymaps
+      Prec.highest(
+        keymap.of([
+          {
+            key: 'Mod-Shift-e',
+            run: () => true,
+            preventDefault: true,
+          },
+        ]),
+      ),
       ...(vimMode ? [vim()] : []),
       history(),
       markdown(),

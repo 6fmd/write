@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import WysiwygEditor from './components/WysiwygEditor';
 import RawEditor from './components/RawEditor';
-import GithubModal from './components/GithubModal';
 import {
   listDocs, getDoc, saveDoc, deleteDoc,
   getActiveDocId, setActiveDocId, generateId, extractTitle,
 } from './lib/storage';
-import {
-  getGithubConfig, listRemoteFiles, readRemoteFile, writeRemoteFile,
-} from './lib/github';
 
 const AUTOSAVE_DELAY = 800;
 
@@ -19,10 +15,12 @@ export default function App() {
   const [mode, setMode] = useState('wysiwyg'); // 'wysiwyg' | 'raw'
   const [vimMode, setVimMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [githubModal, setGithubModal] = useState(false);
-  const [syncStatus, setSyncStatus] = useState(''); // '', 'syncing', 'ok', 'error'
-  const [ghConfig, setGhConfig] = useState(getGithubConfig);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const autosaveTimer = useRef(null);
+
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
 
   // Load docs from localStorage on mount
   useEffect(() => {
@@ -43,7 +41,7 @@ export default function App() {
 
   function newDoc() {
     const id = generateId();
-    const doc = saveDoc(id, { title: 'Untitled', content: '', updatedAt: new Date().toISOString() });
+    saveDoc(id, { title: 'Untitled', content: '', customTitle: null, updatedAt: new Date().toISOString() });
     setDocs(listDocs());
     switchDoc(id, '');
   }
@@ -71,66 +69,117 @@ export default function App() {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
       if (!activeId) return;
+      const existing = getDoc(activeId);
       const title = extractTitle(newContent);
-      saveDoc(activeId, { title, content: newContent });
+      // Never overwrite a manually-set customTitle from autosave
+      const payload = existing?.customTitle
+        ? { content: newContent }
+        : { title, content: newContent };
+      saveDoc(activeId, payload);
       setDocs(listDocs());
     }, AUTOSAVE_DELAY);
   }, [activeId]);
-
-  // GitHub: push current doc
-  async function pushDoc() {
-    const cfg = getGithubConfig();
-    if (!cfg || !activeId) return;
-    const doc = getDoc(activeId);
-    if (!doc) return;
-    setSyncStatus('syncing');
-    try {
-      const fileName = `${activeId}.md`;
-      const filePath = cfg.path ? `${cfg.path.replace(/\/$/, '')}/${fileName}` : fileName;
-      // Try to get existing SHA
-      let sha;
-      try {
-        const existing = await readRemoteFile({ ...cfg, filePath });
-        sha = existing.sha;
-      } catch { /* new file */ }
-      await writeRemoteFile({ ...cfg, filePath, content: doc.content, sha });
-      setSyncStatus('ok');
-      setTimeout(() => setSyncStatus(''), 2000);
-    } catch (e) {
-      setSyncStatus('error');
-      console.error(e);
-      setTimeout(() => setSyncStatus(''), 4000);
-    }
-  }
-
-  // GitHub: pull all remote .md files into localStorage
-  async function pullAll() {
-    const cfg = getGithubConfig();
-    if (!cfg) return;
-    setSyncStatus('syncing');
-    try {
-      const files = await listRemoteFiles(cfg);
-      const updated = {};
-      for (const f of files) {
-        const { content } = await readRemoteFile({ ...cfg, filePath: f.path });
-        const id = f.name.replace(/\.md$/, '');
-        const doc = saveDoc(id, { title: extractTitle(content), content });
-        updated[id] = doc;
-      }
-      setDocs(listDocs());
-      setSyncStatus('ok');
-      setTimeout(() => setSyncStatus(''), 2000);
-    } catch (e) {
-      setSyncStatus('error');
-      console.error(e);
-      setTimeout(() => setSyncStatus(''), 4000);
-    }
-  }
 
   const activeDoc = activeId ? docs[activeId] : null;
   const sortedDocs = Object.values(docs).sort((a, b) =>
     (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')
   );
+
+  function currentTitleForDownload() {
+    if (!activeDoc) return 'Untitled';
+    return (activeDoc.customTitle || activeDoc.title || 'Untitled').trim() || 'Untitled';
+  }
+
+  function downloadCurrentDoc() {
+    if (!activeId || !activeDoc) return;
+    const title = currentTitleForDownload()
+      .replace(/[\\/:*?"<>|]/g, '')
+      .slice(0, 80) || 'Untitled';
+    const blob = new Blob([content ?? ''], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function beginRename(doc) {
+    setRenamingId(doc.id);
+    setRenameValue(doc.customTitle ?? doc.title ?? 'Untitled');
+  }
+
+  function commitRename(docId) {
+    const value = renameValue.trim();
+    saveDoc(docId, { customTitle: value || null });
+    setDocs(listDocs());
+    setRenamingId(null);
+    setRenameValue('');
+  }
+
+  function cancelRename() {
+    setRenamingId(null);
+    setRenameValue('');
+  }
+
+  useEffect(() => {
+    function handleKeydown(e) {
+      const isMod = isMac ? e.metaKey : e.ctrlKey;
+      if (!isMod) return;
+
+      // Normalize key to lower-case for letters
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+      // Cmd/Ctrl + \
+      if (!e.shiftKey && key === '\\') {
+        e.preventDefault();
+        setSidebarOpen(prev => !prev);
+        return;
+      }
+
+      // Cmd/Ctrl + Shift + E — toggle WYSIWYG / Raw
+      if (e.shiftKey && key === 'e') {
+        e.preventDefault();
+        setMode(prev => (prev === 'wysiwyg' ? 'raw' : 'wysiwyg'));
+        return;
+      }
+
+      // Cmd/Ctrl + Shift + V — toggle Vim (Raw mode only)
+      if (e.shiftKey && key === 'v') {
+        e.preventDefault();
+        if (mode === 'raw') {
+          setVimMode(prev => !prev);
+        }
+        return;
+      }
+
+      // Cmd/Ctrl + Shift + S — download current doc
+      if (e.shiftKey && key === 's') {
+        e.preventDefault();
+        downloadCurrentDoc();
+        return;
+      }
+
+      // Cmd/Ctrl + Shift + K — new document
+      if (e.shiftKey && key === 'k') {
+        e.preventDefault();
+        newDoc();
+        return;
+      }
+
+      // Cmd/Ctrl + / — toggle shortcuts help overlay
+      if (!e.shiftKey && key === '/') {
+        e.preventDefault();
+        setShortcutsOpen(prev => !prev);
+        return;
+      }
+    }
+
+    window.addEventListener('keydown', handleKeydown, true);
+    return () => window.removeEventListener('keydown', handleKeydown, true);
+  }, [isMac, mode, downloadCurrentDoc, newDoc]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -140,9 +189,16 @@ export default function App() {
           width: 220, background: 'var(--surface)', borderRight: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column', flexShrink: 0,
         }}>
-          <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', letterSpacing: '0.1em' }}>write.md</span>
-            <button onClick={newDoc} style={btnStyle} title="New document">＋</button>
+          <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              style={{ ...iconBtnStyle, fontSize: '0.75rem' }}
+              title={isMac ? 'Hide sidebar (⌘\\)' : 'Hide sidebar (Ctrl\\)'}
+            >
+              ←
+            </button>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', letterSpacing: '0.1em', flex: 1, textAlign: 'center' }}>write.md</span>
+            <button onClick={newDoc} style={iconBtnStyle} title="New document">＋</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
@@ -162,9 +218,51 @@ export default function App() {
                   gap: 8,
                 }}
               >
-                <span style={{ fontSize: '0.82rem', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {doc.title || 'Untitled'}
-                </span>
+                {renamingId === doc.id ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onBlur={() => commitRename(doc.id)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitRename(doc.id);
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cancelRename();
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: '0.82rem',
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--text)',
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      borderRadius: 3,
+                      padding: '0.15rem 0.25rem',
+                    }}
+                  />
+                ) : (
+                  <span
+                    onClick={e => {
+                      e.stopPropagation();
+                      beginRename(doc);
+                    }}
+                    style={{
+                      fontSize: '0.82rem',
+                      color: 'var(--text)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flex: 1,
+                    }}
+                  >
+                    {doc.customTitle || doc.title || 'Untitled'}
+                  </span>
+                )}
                 <button
                   onClick={e => { e.stopPropagation(); removeDoc(doc.id); }}
                   style={{ ...btnStyle, fontSize: '0.65rem', opacity: 0.4, flexShrink: 0 }}
@@ -174,50 +272,85 @@ export default function App() {
             ))}
           </div>
 
-          {/* GitHub section */}
-          <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            <button onClick={() => setGithubModal(true)} style={{ ...btnStyle, fontSize: '0.72rem', color: ghConfig ? 'var(--accent)' : 'var(--text-muted)', textAlign: 'left' }}>
-              {ghConfig ? `⇅ ${ghConfig.owner}/${ghConfig.repo}` : '+ Connect GitHub'}
-            </button>
-            {ghConfig && (
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                <button onClick={pushDoc} style={{ ...btnStyle, fontSize: '0.72rem', flex: 1 }} title="Push current doc">↑ push</button>
-                <button onClick={pullAll} style={{ ...btnStyle, fontSize: '0.72rem', flex: 1 }} title="Pull all remote docs">↓ pull</button>
-              </div>
+          {/* Bottom controls */}
+          <div style={{ padding: '0.75rem 0.75rem 0.9rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button
+                onClick={() => setMode('wysiwyg')}
+                style={{
+                  ...pillBtnStyle,
+                  flex: 1,
+                  background: mode === 'wysiwyg' ? 'var(--accent-soft)' : 'transparent',
+                  color: mode === 'wysiwyg' ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                WYSIWYG
+              </button>
+              <button
+                onClick={() => setMode('raw')}
+                style={{
+                  ...pillBtnStyle,
+                  flex: 1,
+                  background: mode === 'raw' ? 'var(--accent-soft)' : 'transparent',
+                  color: mode === 'raw' ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                Raw
+              </button>
+            </div>
+
+            {mode === 'raw' && (
+              <button
+                onClick={() => setVimMode(v => !v)}
+                style={{
+                  ...pillBtnStyle,
+                  justifyContent: 'space-between',
+                  color: vimMode ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                <span>Vim mode</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                  {vimMode ? 'on' : 'off'}
+                </span>
+              </button>
             )}
-            {syncStatus && (
-              <span style={{ fontSize: '0.7rem', color: syncStatus === 'error' ? '#e07070' : syncStatus === 'ok' ? '#6fba7f' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                {syncStatus === 'syncing' ? '…' : syncStatus === 'ok' ? 'synced ✓' : 'error ✗'}
+
+            <button
+              onClick={downloadCurrentDoc}
+              style={{
+                ...btnStyle,
+                justifyContent: 'space-between',
+                fontSize: '0.72rem',
+                opacity: activeId ? 1 : 0.4,
+                cursor: activeId ? 'pointer' : 'default',
+              }}
+              disabled={!activeId}
+            >
+              <span>Download as .md</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
               </span>
-            )}
+            </button>
+
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              style={{
+                ...btnStyle,
+                justifyContent: 'space-between',
+                fontSize: '0.72rem',
+              }}
+            >
+              <span>Keyboard shortcuts</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                {isMac ? '⌘/' : 'Ctrl/'}
+              </span>
+            </button>
           </div>
         </aside>
       )}
 
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Toolbar */}
-        <header style={{
-          height: 40, background: 'var(--surface)', borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', padding: '0 0.75rem', gap: '0.5rem',
-          flexShrink: 0,
-        }}>
-          <button onClick={() => setSidebarOpen(o => !o)} style={btnStyle} title="Toggle sidebar">☰</button>
-          <div style={{ flex: 1 }} />
-          <button
-            onClick={() => setMode(m => m === 'wysiwyg' ? 'raw' : 'wysiwyg')}
-            style={{ ...btnStyle, fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}
-          >
-            {mode === 'wysiwyg' ? 'raw' : 'wysiwyg'}
-          </button>
-          {mode === 'raw' && (
-            <button
-              onClick={() => setVimMode(v => !v)}
-              style={{ ...btnStyle, fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: vimMode ? 'var(--accent)' : 'var(--text-muted)' }}
-            >vim {vimMode ? 'on' : 'off'}</button>
-          )}
-        </header>
-
         {/* Editor area */}
         <main style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
           {!activeId ? (
@@ -237,11 +370,93 @@ export default function App() {
         </main>
       </div>
 
-      {githubModal && (
-        <GithubModal onClose={(saved) => {
-          setGithubModal(false);
-          if (saved) setGhConfig(getGithubConfig());
-        }} />
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 20,
+            ...iconBtnStyle,
+            padding: '0.15rem 0.3rem',
+          }}
+          title={isMac ? 'Show sidebar (⌘\\)' : 'Show sidebar (Ctrl\\)'}
+        >
+          ☰
+        </button>
+      )}
+
+      {shortcutsOpen && (
+        <div
+          onClick={e => {
+            if (e.target === e.currentTarget) setShortcutsOpen(false);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 30,
+          }}
+        >
+          <div
+            tabIndex={-1}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setShortcutsOpen(false);
+              }
+            }}
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '1.5rem 1.75rem',
+              width: 420,
+              maxWidth: '90vw',
+              boxShadow: '0 18px 40px rgba(0,0,0,0.45)',
+            }}
+          >
+            <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
+                Keyboard shortcuts
+              </div>
+              <button
+                onClick={() => setShortcutsOpen(false)}
+                style={{ ...iconBtnStyle, fontSize: '0.8rem' }}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              {isMac ? '⌘' : 'Ctrl'} shortcuts work anywhere in the app.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: '0.45rem', columnGap: '1rem', fontSize: '0.8rem' }}>
+              <span>Toggle sidebar</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', '\\']} />
+
+              <span>Toggle WYSIWYG / Raw</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'E']} />
+
+              <span>Toggle Vim mode (Raw)</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'V']} />
+
+              <span>Download current document</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} />
+
+              <span>New document</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'K']} />
+
+              <span>Toggle shortcuts help</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', '/']} />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -253,3 +468,49 @@ const btnStyle = {
   fontFamily: 'var(--font-sans)', fontSize: '0.8rem',
   lineHeight: 1,
 };
+
+const iconBtnStyle = {
+  ...btnStyle,
+  padding: '0.15rem 0.3rem',
+  borderRadius: 999,
+};
+
+const pillBtnStyle = {
+  ...btnStyle,
+  borderRadius: 999,
+  border: '1px solid var(--border)',
+  padding: '0.3rem 0.6rem',
+  fontSize: '0.72rem',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+function ShortcutKeys({ isMac, keys }) {
+  const display = keys.map((k) => {
+    if (k === 'Mod') return isMac ? '⌘' : 'Ctrl';
+    if (k === 'Shift') return isMac ? '⇧' : 'Shift';
+    return k;
+  });
+  return (
+    <span style={{ display: 'flex', gap: '0.25rem' }}>
+      {display.map((label, i) => (
+        <kbd
+          key={`${label}-${i}`}
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.7rem',
+            padding: '0.15rem 0.3rem',
+            borderRadius: 3,
+            border: '1px solid var(--border)',
+            background: 'var(--bg)',
+            minWidth: 16,
+            textAlign: 'center',
+          }}
+        >
+          {label}
+        </kbd>
+      ))}
+    </span>
+  );
+}
