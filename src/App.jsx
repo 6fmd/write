@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import WysiwygEditor from './components/WysiwygEditor';
 import RawEditor from './components/RawEditor';
 import { useTheme } from './hooks/useTheme';
+import Fuse from 'fuse.js';
 import {
   listDocs, getDoc, saveDoc, deleteDoc,
   getActiveDocId, setActiveDocId, generateId, extractTitle,
@@ -56,6 +57,7 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [closeTargetId, setCloseTargetId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [defaultExportFormat, setDefaultExportFormat] = useState(() => {
     try { return localStorage.getItem('write-md:exportFormat') || 'md'; }
     catch { return 'md'; }
@@ -63,6 +65,7 @@ export default function App() {
   const autosaveTimer = useRef(null);
   const closeConfirmRef = useRef(null);
   const shortcutsRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
   const { theme, toggle: toggleTheme } = useTheme();
@@ -138,6 +141,16 @@ export default function App() {
     (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')
   );
 
+  const displayDocs = useMemo(() => {
+    if (!searchQuery.trim()) return sortedDocs;
+    const fuse = new Fuse(sortedDocs, {
+      keys: ['title', 'customTitle', 'content'],
+      threshold: 0.3,
+      ignoreLocation: true,
+    });
+    return fuse.search(searchQuery).map(result => result.item);
+  }, [sortedDocs, searchQuery]);
+
   useEffect(() => {
     try {
       localStorage.setItem('write-md:wrapWidthPx', String(wrapWidth));
@@ -211,6 +224,15 @@ export default function App() {
 
       // Normalize key to lower-case for letters
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+      // Cmd/Ctrl + Shift + F — Focus search
+      if (e.shiftKey && key === 'f') {
+        e.preventDefault();
+        setSidebarOpen(true);
+        // Small timeout to allow sidebar to open if it was closed
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+        return;
+      }
 
       // Cmd/Ctrl + \
       if (!e.shiftKey && key === '\\') {
@@ -353,11 +375,71 @@ export default function App() {
             </button>
           </div>
 
+          <div style={{ padding: '0.4rem 0.75rem', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder={isMac ? "Search... (⌘⇧F)" : "Search... (Ctrl⇧F)"}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setSearchQuery('');
+                    searchInputRef.current?.blur();
+                    if (mode === 'raw') setRawFocusToken(t => t + 1);
+                    else setVisualFocusToken(t => t + 1);
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (displayDocs.length > 0) {
+                      switchDoc(displayDocs[0].id);
+                      searchInputRef.current?.blur();
+                    }
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-sans)',
+                  color: 'var(--text)',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  padding: '0.3rem 0.5rem',
+                  paddingRight: '1.5rem',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '0.4rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', color: 'var(--text-muted)',
+                    cursor: 'pointer', fontSize: '0.7rem', padding: 0
+                  }}
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
-            {sortedDocs.length === 0 && (
-              <p style={{ padding: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>No documents yet.</p>
+            {displayDocs.length === 0 && (
+              <p style={{ padding: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {searchQuery ? 'No documents match your search.' : 'No documents yet.'}
+              </p>
             )}
-            {sortedDocs.map(doc => (
+            {displayDocs.map(doc => (
               <div
                 key={doc.id}
                 onClick={() => {
@@ -871,6 +953,10 @@ export default function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
                   <span>Close doc</span>
                   <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'X']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Search</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'F']} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
                   <span>Download ({defaultExportFormat.toUpperCase()})</span>
