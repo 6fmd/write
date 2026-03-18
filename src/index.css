@@ -41,9 +41,10 @@ html, body, #root {
   font-size: 1.05rem;
   line-height: 1.8;
   color: var(--text);
-  max-width: 680px;
+  max-width: var(--editor-max-width, 980px);
   width: 100%;
   min-height: 100%;
+  margin: 0 auto;
   padding: 4rem 2rem;
 }
 
@@ -128,6 +129,9 @@ html, body, #root {
   height: 100%;
   font-family: var(--font-mono) !important;
   font-size: 0.9rem;
+  max-width: var(--editor-max-width, 980px);
+  width: 100%;
+  margin: 0 auto;
 }
 .cm-editor.cm-focused { outline: none; }
 .cm-scroller { padding: 4rem 2rem; }

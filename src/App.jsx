@@ -11,6 +11,15 @@ const AUTOSAVE_DELAY = 800;
 
 export default function App() {
   const [docs, setDocs] = useState(() => listDocs());
+  const [wrapWidth, setWrapWidth] = useState(() => {
+    try {
+      const raw = localStorage.getItem('write-md:wrapWidthPx');
+      const n = raw ? Number(raw) : NaN;
+      return Number.isFinite(n) ? Math.min(1800, Math.max(520, n)) : 980;
+    } catch {
+      return 980;
+    }
+  });
   const [activeId, setActiveId] = useState(() => {
     const stored = listDocs();
     const lastId = getActiveDocId();
@@ -43,6 +52,26 @@ export default function App() {
   const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
   const { theme, toggle: toggleTheme } = useTheme();
 
+  function isEmptyDocContent(md) {
+    return (md ?? '').trim() === '';
+  }
+
+  function requestCloseDoc(id) {
+    if (!id) return;
+    const doc = docs[id];
+    if (!doc) return;
+
+    // For the active doc, rely on in-memory content (autosave is delayed).
+    const effectiveContent = id === activeId ? content : (doc.content ?? '');
+    if (isEmptyDocContent(effectiveContent)) {
+      removeDoc(id);
+      return;
+    }
+
+    setCloseTargetId(id);
+    setCloseConfirmOpen(true);
+  }
+
   function newDoc() {
     const id = generateId();
     saveDoc(id, { title: 'Untitled', content: '', customTitle: null, updatedAt: new Date().toISOString() });
@@ -53,6 +82,9 @@ export default function App() {
   }
 
   function switchDoc(id, forcedContent) {
+    // Prevent accidental reloads (e.g. click bubbling from rename input) from
+    // overwriting in-memory edits with last-saved storage content.
+    if (id === activeId && forcedContent === undefined) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     setActiveId(id);
     setActiveDocId(id);
@@ -91,6 +123,14 @@ export default function App() {
     (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')
   );
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('write-md:wrapWidthPx', String(wrapWidth));
+    } catch {
+      // ignore
+    }
+  }, [wrapWidth]);
+
   function currentTitleForDownload() {
     if (!activeDoc) return 'Untitled';
     return (activeDoc.customTitle || activeDoc.title || 'Untitled').trim() || 'Untitled';
@@ -128,6 +168,12 @@ export default function App() {
   function cancelRename() {
     setRenamingId(null);
     setRenameValue('');
+  }
+
+  function commitRenameIfLeaving(currentDocId, nextDocId) {
+    if (!currentDocId) return;
+    if (currentDocId === nextDocId) return;
+    commitRename(currentDocId);
   }
 
   useEffect(() => {
@@ -189,11 +235,10 @@ export default function App() {
         return;
       }
 
-      // Cmd/Ctrl + Shift + X — close current document (with confirmation)
+      // Cmd/Ctrl + Shift + X — close current document (confirm only if non-empty)
       if (e.shiftKey && key === 'x' && activeId) {
         e.preventDefault();
-        setCloseTargetId(activeId);
-        setCloseConfirmOpen(true);
+        requestCloseDoc(activeId);
         return;
       }
 
@@ -207,7 +252,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeydown, true);
     return () => window.removeEventListener('keydown', handleKeydown, true);
-  }, [isMac, mode, vimMode, activeId, downloadCurrentDoc, newDoc, activeDoc, beginRename]);
+  }, [isMac, mode, vimMode, activeId, content, docs, downloadCurrentDoc, newDoc, activeDoc, beginRename]);
 
   // Focus the close-confirm dialog so Enter/Esc work immediately
   useEffect(() => {
@@ -271,7 +316,10 @@ export default function App() {
             {sortedDocs.map(doc => (
               <div
                 key={doc.id}
-                onClick={() => switchDoc(doc.id)}
+                onClick={() => {
+                  commitRenameIfLeaving(renamingId, doc.id);
+                  switchDoc(doc.id);
+                }}
                 style={{
                   padding: '0.5rem 1rem',
                   cursor: 'pointer',
@@ -286,6 +334,8 @@ export default function App() {
                     autoFocus
                     value={renameValue}
                     onChange={e => setRenameValue(e.target.value)}
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => e.stopPropagation()}
                     onBlur={() => commitRename(doc.id)}
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
@@ -310,10 +360,6 @@ export default function App() {
                   />
                 ) : (
                   <span
-                    onClick={e => {
-                      e.stopPropagation();
-                      beginRename(doc);
-                    }}
                     style={{
                       fontSize: '0.82rem',
                       color: 'var(--text)',
@@ -321,16 +367,30 @@ export default function App() {
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                       flex: 1,
+                      userSelect: 'none',
                     }}
                   >
                     {doc.customTitle || doc.title || 'Untitled'}
                   </span>
                 )}
+                {renamingId !== doc.id && (
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      commitRenameIfLeaving(renamingId, doc.id);
+                      switchDoc(doc.id);
+                      beginRename(doc);
+                    }}
+                    style={{ ...btnStyle, fontSize: '0.7rem', opacity: 0.4, flexShrink: 0 }}
+                    title="Rename"
+                    aria-label="Rename document"
+                  >✎</button>
+                )}
                 <button
                   onClick={e => {
                     e.stopPropagation();
-                    setCloseTargetId(doc.id);
-                    setCloseConfirmOpen(true);
+                    commitRenameIfLeaving(renamingId, doc.id);
+                    requestCloseDoc(doc.id);
                   }}
                   style={{ ...btnStyle, fontSize: '0.65rem', opacity: 0.4, flexShrink: 0 }}
                   title="Delete"
@@ -459,7 +519,15 @@ export default function App() {
       )}
 
       {/* Main */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          '--editor-max-width': `${wrapWidth}px`,
+        }}
+      >
         {/* Editor area */}
         <main
           style={{
@@ -526,6 +594,45 @@ export default function App() {
             </div>
           )}
         </main>
+
+        {activeId && (
+          <div
+            style={{
+              borderTop: '1px solid var(--border)',
+              background: 'var(--surface)',
+              padding: '0.45rem 0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+            }}
+          >
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              Wrap width
+            </div>
+            <input
+              type="range"
+              min={520}
+              max={1800}
+              step={20}
+              value={wrapWidth}
+              onChange={(e) => setWrapWidth(Number(e.target.value))}
+              style={{ flex: 1 }}
+              aria-label="Wrap width"
+            />
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.72rem',
+                color: 'var(--text)',
+                minWidth: 84,
+                textAlign: 'right',
+              }}
+              title="Max content width in pixels"
+            >
+              {wrapWidth}px
+            </div>
+          </div>
+        )}
       </div>
 
       {!sidebarOpen && (

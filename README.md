@@ -14,6 +14,7 @@ A tiny, **client-only** Markdown editor (no backend). It supports a visual edito
 
 - **Node.js**: 20+ recommended
 - **Package manager**: npm
+- **Note (macOS arm64)**: Vite 8 pulls in `rolldown`, which uses a native binding. Due to an npm optional-dependency install issue, this repo includes `@rolldown/binding-darwin-arm64` as an explicit dev dependency so `npm run build` works reliably on Apple Silicon.
 
 ## Development
 
@@ -21,6 +22,12 @@ A tiny, **client-only** Markdown editor (no backend). It supports a visual edito
 npm install
 npm run dev
 ```
+
+## Basic usage
+
+- **Select a document**: click its row/title in the sidebar.
+- **Rename a document**: click the **✎** button on the document row (or use **Cmd/Ctrl + Shift + R**).
+- **Delete a document**: click the **✕** button (you’ll be prompted if the doc isn’t empty).
 
 Common scripts:
 
