@@ -6,7 +6,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { vim } from '@replit/codemirror-vim';
 import { oneDark } from '@codemirror/theme-one-dark';
 
-export default function RawEditor({ content, onChange, vimMode, theme }) {
+export default function RawEditor({ content, onChange, vimMode, theme, focusToken }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);
@@ -57,6 +57,13 @@ export default function RawEditor({ content, onChange, vimMode, theme }) {
       viewRef.current = null;
     };
   }, [vimMode, theme]); // recreate when vim mode or theme toggles
+
+  // Focus editor when requested by parent (e.g. on Cmd/Ctrl-Shift-V)
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.focus();
+  }, [focusToken]);
 
   // Sync content in when doc changes externally
   useEffect(() => {
