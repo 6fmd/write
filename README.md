@@ -1,52 +1,94 @@
 # write-md
 
-A tiny, **client-only** Markdown editor (no backend). It supports a visual editor and a raw Markdown editor, and stores documents in `localStorage`.
+A fast, beautiful, **client-only** Markdown editor built with React and Vite. It runs entirely in your browser with zero backend requirements, storing all your documents safely in your browser's local storage.
 
-## Scope
+## Features
 
-- **Runs entirely in the browser** (static SPA)
-- **Local documents**: saved to `localStorage`
-- **Editors**:
-  - Visual: TipTap (+ Markdown support)
-  - Raw: CodeMirror 6 (optional Vim keybindings)
+- **Blazing Fast & Local**: No backend, no accounts. Everything is saved locally via IndexedDB/`localStorage` with automatic saving.
+- **Dual Editors**:
+  - **Visual Mode**: A rich-text, WYSIWYG editor powered by [TipTap](https://tiptap.dev/), with full Markdown support.
+  - **Raw Mode**: A powerful plain-text Markdown editor built on [CodeMirror 6](https://codemirror.net/).
+  - **Vim Mode**: Optional Vim keybindings for power users in Raw Mode.
+- **Document Management**:
+  - Organize and rename multiple documents from the sidebar.
+  - **Fuzzy Search**: Instantly find any document by its title or content using the lightning-fast built-in search.
+  - **Drag and Drop**: Simply drop `.md` or `.txt` files directly into the sidebar to import them instantly.
+- **Customizable Workspace**:
+  - Adjustable content wrap width for comfortable reading and writing.
+  - Light and Dark themes.
+- **Export & Stats**:
+  - Download documents as `.md` files or print directly to PDF.
+  - Live word count, character count, estimated read time, and storage usage statistics.
 
-## Dependencies
+## Tech Stack
+
+- **Framework**: React 19 + Vite 8
+- **Editors**: TipTap (Visual) & CodeMirror 6 (Raw)
+- **Search**: Fuse.js
+- **Storage**: idb-keyval + localStorage
+
+## Getting Started
+
+### Prerequisites
 
 - **Node.js**: 20+ recommended
 - **Package manager**: npm
-- **Note (macOS arm64)**: Vite 8 pulls in `rolldown`, which uses a native binding. Due to an npm optional-dependency install issue, this repo includes `@rolldown/binding-darwin-arm64` as an explicit dev dependency so `npm run build` works reliably on Apple Silicon.
 
-## Development
+*Note for macOS (Apple Silicon) users: Vite 8 uses `rolldown` with native bindings. This repository explicitly includes `@rolldown/binding-darwin-arm64` as a dev dependency to ensure seamless builds on M1/M2/M3 chips.*
+
+### Installation
+
+Clone the repository and install the dependencies:
 
 ```bash
 npm install
+```
+
+### Development
+
+Start the local development server:
+
+```bash
 npm run dev
 ```
 
-## Basic usage
+### Production Build
 
-- **Select a document**: click its row/title in the sidebar.
-- **Rename a document**: click the **✎** button on the document row (or use **Cmd/Ctrl + Shift + R**).
-- **Delete a document**: click the **✕** button (you’ll be prompted if the doc isn’t empty).
-
-Common scripts:
+Build the application for production:
 
 ```bash
 npm run build
-npm run preview
-npm run lint
 ```
 
-## Deploy (GitHub Pages)
+You can preview the production build locally with:
 
-This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml` that builds the app and publishes the `dist/` output to GitHub Pages on pushes to `main`.
+```bash
+npm run preview
+```
 
-- In your repo: **Settings → Pages → Source → GitHub Actions**
-- Push to `main`
+## Keyboard Shortcuts
 
-### Custom domain (optional)
+- **`Cmd/Ctrl + \`**: Toggle Sidebar
+- **`Cmd/Ctrl + Shift + F`**: Search documents
+- **`Cmd/Ctrl + Shift + K`**: Create new document
+- **`Cmd/Ctrl + Shift + E`**: Toggle Visual/Raw mode
+- **`Cmd/Ctrl + Shift + V`**: Switch to Raw mode with Vim keybindings
+- **`Cmd/Ctrl + Shift + R`**: Rename current document
+- **`Cmd/Ctrl + Shift + S`**: Download document as `.md`
+- **`Cmd/Ctrl + P`**: Print current document
+- **`Cmd/Ctrl + Shift + X`**: Close current document
+- **`Cmd/Ctrl + /`**: Open shortcuts menu
 
-- Set the Vite base in `vite.config.js`:
-  - Custom domain: `base: '/'`
-  - Repo subpath: `base: '/<repo-name>/'`
-- Update `public/CNAME` if you’re using a custom domain (GitHub Pages will publish it).
+## Deployment (GitHub Pages)
+
+This repository includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically builds and deploys the `dist/` directory to GitHub Pages whenever you push to the `main` branch.
+
+1. Go to your repository **Settings** → **Pages**.
+2. Under **Build and deployment**, select **GitHub Actions** as the source.
+3. Push your changes to `main`.
+
+### Custom Domain
+
+If you want to use a custom domain:
+1. Update your Vite base path in `vite.config.js` (`base: '/'`). If hosting on a subpath, use `base: '/<repo-name>/'`.
+2. Add your custom domain to `public/CNAME`.
