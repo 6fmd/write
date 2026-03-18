@@ -201,7 +201,12 @@ html, body, #root {
   min-height: 44px !important;
   min-width: 44px !important;
   padding: 0.55rem 0.9rem !important;
-  font-size: 0.9rem !important;
+  font-size: 1rem !important; /* also prevents iOS zoom on tap */
+}
+
+/* Sidebar header buttons (← and ＋) slightly larger */
+.sidebar-mobile .sidebar-header button {
+  font-size: 1.2rem !important;
 }
 
 .sidebar-mobile .doc-item {
@@ -210,12 +215,21 @@ html, body, #root {
 }
 
 .sidebar-mobile .doc-item span {
-  font-size: 0.9rem !important;
+  font-size: 0.95rem !important;
 }
 
+/* Rename / close icon buttons: bigger and more visible */
+.sidebar-mobile .doc-item button {
+  font-size: 1.1rem !important;
+  opacity: 0.55 !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+}
+
+/* Prevent iOS auto-zoom: inputs must be >= 16px (1rem) */
 .sidebar-mobile input[type="text"] {
   padding: 0.55rem 0.6rem !important;
-  font-size: 0.85rem !important;
+  font-size: 1rem !important;
 }
 
 @media (max-width: 767px) {

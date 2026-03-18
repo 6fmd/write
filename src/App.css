@@ -173,6 +173,7 @@
   flex-direction: column;
   gap: 0.4rem;
   font-size: 0.75rem;
+  flex-shrink: 0; /* never compress when virtual keyboard shrinks viewport */
 }
 
 .width-control {
@@ -310,8 +311,9 @@
   justify-content: center;
 }
 
-.overlay--front { z-index: 40; }
-.overlay--back  { z-index: 30; }
+/* Must exceed the mobile sidebar z-index (100) */
+.overlay--front { z-index: 200; }
+.overlay--back  { z-index: 200; }
 
 /* ─── Dialog ──────────────────────────────────────────────────── */
 
@@ -587,4 +589,19 @@ kbd.key {
 .btn-pill:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* ─── Mobile overrides ────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Single-column shortcuts layout so it doesn't overflow */
+  .shortcuts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Prevent iOS zoom on input focus: font-size must be >= 16px */
+  .search-input,
+  .doc-rename-input {
+    font-size: 1rem;
+  }
 }

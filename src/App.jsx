@@ -514,6 +514,7 @@ export default function App() {
                 {renamingId === doc.id ? (
                   <input
                     autoFocus
+                    ref={el => { if (el && isMobile) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 350); }}
                     className="doc-rename-input"
                     value={renameValue}
                     onChange={e => setRenameValue(e.target.value)}
@@ -581,17 +582,18 @@ export default function App() {
             <div className="btn-row">
               <button
                 className={`btn-pill btn--flex${mode === 'visual' ? ' btn-pill--active' : ' btn-pill--inactive'}`}
-                onClick={() => { setMode('visual'); setVimMode(false); }}
+                onClick={() => { document.activeElement?.blur(); setMode('visual'); setVimMode(false); }}
                 title={isMac ? 'Switch to Visual (⌘⇧E)' : 'Switch to Visual (Ctrl⇧E)'}
               >Visual</button>
               <button
                 className={`btn-pill btn--flex${mode === 'raw' && !vimMode ? ' btn-pill--active' : ' btn-pill--inactive'}`}
-                onClick={() => { setMode('raw'); setVimMode(false); }}
+                onClick={() => { document.activeElement?.blur(); setMode('raw'); setVimMode(false); }}
                 title={isMac ? 'Switch to Raw (⌘⇧E)' : 'Switch to Raw (Ctrl⇧E)'}
               >Raw</button>
               <button
                 className={`btn-pill btn--flex${mode === 'raw' && vimMode ? ' btn-pill--active' : ' btn-pill--inactive'}`}
                 onClick={() => {
+                  document.activeElement?.blur();
                   if (mode === 'raw' && vimMode) { setVimMode(false); setRawFocusToken(t => t + 1); }
                   else { setMode('raw'); setVimMode(true); setRawFocusToken(t => t + 1); }
                 }}
@@ -678,7 +680,7 @@ export default function App() {
       {!sidebarOpen && (
         <button
           className="btn-icon sidebar-toggle"
-          onClick={() => setSidebarOpen(true)}
+          onClick={() => { document.activeElement?.blur(); setSidebarOpen(true); }}
           title={isMac ? 'Show sidebar (⌘\\)' : 'Show sidebar (Ctrl\\)'}
         >☰</button>
       )}

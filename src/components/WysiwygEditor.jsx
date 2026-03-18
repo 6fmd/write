@@ -3,7 +3,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
 import { Markdown } from 'tiptap-markdown';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function WysiwygEditor({ content, onChange, focusToken }) {
   const editor = useEditor({
@@ -36,9 +36,12 @@ export default function WysiwygEditor({ content, onChange, focusToken }) {
     }
   }, [content, editor]);
 
-  // Focus editor when requested by parent (e.g. after creating a new document)
+  // Focus editor only when explicitly requested — skip the initial mount so
+  // switching modes on mobile doesn't pop up the virtual keyboard.
+  const didMountRef = useRef(false);
   useEffect(() => {
     if (!editor) return;
+    if (!didMountRef.current) { didMountRef.current = true; return; }
     editor.commands.focus('start');
   }, [focusToken, editor]);
 

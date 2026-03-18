@@ -61,10 +61,13 @@ export default function RawEditor({ content, onChange, vimMode, theme, focusToke
     };
   }, [vimMode, theme]); // recreate when vim mode or theme toggles
 
-  // Focus editor when requested by parent (e.g. on Cmd/Ctrl-Shift-V)
+  // Focus editor only when explicitly requested — skip the initial mount so
+  // switching modes on mobile doesn't pop up the virtual keyboard.
+  const didMountRef = useRef(false);
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
+    if (!didMountRef.current) { didMountRef.current = true; return; }
     view.focus();
   }, [focusToken]);
 
