@@ -19,7 +19,9 @@ export default function App() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const autosaveTimer = useRef(null);
+  const closeConfirmRef = useRef(null);
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
   const { theme, toggle: toggleTheme } = useTheme();
@@ -178,6 +180,13 @@ export default function App() {
         return;
       }
 
+      // Cmd/Ctrl + Shift + W — close current document (with confirmation)
+      if (e.shiftKey && key === 'w' && activeDoc) {
+        e.preventDefault();
+        setCloseConfirmOpen(true);
+        return;
+      }
+
       // Cmd/Ctrl + / — toggle shortcuts help overlay
       if (!e.shiftKey && key === '/') {
         e.preventDefault();
@@ -189,6 +198,13 @@ export default function App() {
     window.addEventListener('keydown', handleKeydown, true);
     return () => window.removeEventListener('keydown', handleKeydown, true);
   }, [isMac, mode, downloadCurrentDoc, newDoc, activeDoc, beginRename]);
+
+  // Focus the close-confirm dialog so Enter/Esc work immediately
+  useEffect(() => {
+    if (closeConfirmOpen && closeConfirmRef.current) {
+      closeConfirmRef.current.focus();
+    }
+  }, [closeConfirmOpen]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -207,7 +223,13 @@ export default function App() {
               ←
             </button>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text)', letterSpacing: '0.1em', flex: 1, textAlign: 'center' }}>write.6f.md</span>
-            <button onClick={newDoc} style={iconBtnStyle} title="New document">＋</button>
+            <button
+              onClick={newDoc}
+              style={iconBtnStyle}
+              title={isMac ? 'New document (⌘⇧K)' : 'New document (Ctrl⇧K)'}
+            >
+              ＋
+            </button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
@@ -296,6 +318,11 @@ export default function App() {
                 borderStyle: 'dashed',
               }}
               disabled={mode !== 'raw'}
+              title={
+                mode === 'raw'
+                  ? (isMac ? 'Toggle Vim mode (⌘⇧V)' : 'Toggle Vim mode (Ctrl⇧V)')
+                  : 'Vim mode (Raw only)'
+              }
             >
               <span>Vim mode</span>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: vimMode && mode === 'raw' ? 'var(--text)' : 'var(--text-muted)' }}>
@@ -313,6 +340,7 @@ export default function App() {
                   background: mode === 'visual' ? 'var(--bg)' : 'transparent',
                   color: mode === 'visual' ? 'var(--text)' : 'var(--text-muted)',
                 }}
+                title={isMac ? 'Switch to Visual (⌘⇧E)' : 'Switch to Visual (Ctrl⇧E)'}
               >
                 Visual
               </button>
@@ -324,59 +352,79 @@ export default function App() {
                   background: mode === 'raw' ? 'var(--bg)' : 'transparent',
                   color: mode === 'raw' ? 'var(--text)' : 'var(--text-muted)',
                 }}
+                title={isMac ? 'Switch to Raw (⌘⇧E)' : 'Switch to Raw (Ctrl⇧E)'}
               >
                 Raw
               </button>
             </div>
 
-            {/* Utility row: all matching pills */}
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <button
-                onClick={toggleTheme}
-                style={{
-                  ...pillBtnStyle,
-                  flex: '0 0 auto',
-                  width: 36,
-                  justifyContent: 'center',
-                  fontSize: '0.9rem',
-                }}
-                title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-              >
-                {theme === 'dark' ? '☀' : '☾'}
-              </button>
-
-              <button
-                onClick={downloadCurrentDoc}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  justifyContent: 'space-between',
-                  fontSize: '0.72rem',
-                  opacity: activeId ? 1 : 0.4,
-                  cursor: activeId ? 'pointer' : 'default',
-                }}
-                disabled={!activeId}
-              >
-                <span>Download as .md</span>
-                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                  {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
-                </span>
-              </button>
-            </div>
-
+            {/* Download row: full width */}
             <button
-              onClick={() => setShortcutsOpen(true)}
+              onClick={downloadCurrentDoc}
               style={{
                 ...pillBtnStyle,
                 justifyContent: 'space-between',
                 fontSize: '0.72rem',
+                opacity: activeId ? 1 : 0.4,
+                cursor: activeId ? 'pointer' : 'default',
               }}
+              disabled={!activeId}
+              title={
+                activeId
+                  ? (isMac ? 'Download current document (⌘⇧S)' : 'Download current document (Ctrl⇧S)')
+                  : 'Download current document'
+              }
             >
-              <span>Keyboard shortcuts</span>
+              <span>Download as .md</span>
               <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                {isMac ? '⌘/' : 'Ctrl/'}
+                {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
               </span>
             </button>
+
+            {/* Theme + shortcuts section at the bottom */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.1rem' }}>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button
+                  onClick={() => theme !== 'light' && toggleTheme()}
+                  style={{
+                    ...pillBtnStyle,
+                    flex: 1,
+                    background: theme === 'light' ? 'var(--bg)' : 'transparent',
+                    color: theme === 'light' ? 'var(--text)' : 'var(--text-muted)',
+                  }}
+                  title="Switch to light theme"
+                >
+                  Light
+                </button>
+                <button
+                  onClick={() => theme !== 'dark' && toggleTheme()}
+                  style={{
+                    ...pillBtnStyle,
+                    flex: 1,
+                    background: theme === 'dark' ? 'var(--bg)' : 'transparent',
+                    color: theme === 'dark' ? 'var(--text)' : 'var(--text-muted)',
+                  }}
+                  title="Switch to dark theme"
+                >
+                  Dark
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShortcutsOpen(true)}
+                style={{
+                  ...pillBtnStyle,
+                  justifyContent: 'space-between',
+                  fontSize: '0.72rem',
+                }}
+                title={isMac ? 'Show keyboard shortcuts (⌘/)' : 'Show keyboard shortcuts (Ctrl/)'}
+              >
+                <span>Keyboard shortcuts</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                  {isMac ? '⌘/' : 'Ctrl/'}
+                </span>
+              </button>
+            </div>
           </div>
         </aside>
       )}
@@ -384,14 +432,14 @@ export default function App() {
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Editor area */}
-        <main style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
+        <main style={{ flex: 1, overflow: 'hidden', display: 'flex', justifyContent: 'flex-start' }}>
           {!activeId ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: 'var(--text-muted)', height: '100%' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>no document selected</span>
               <button onClick={newDoc} style={{ ...btnStyle, color: 'var(--text)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>create one →</button>
             </div>
           ) : mode === 'visual' ? (
-            <div style={{ width: '100%', height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: '100%', height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'flex-start' }}>
               <WysiwygEditor key={activeId} content={content} onChange={handleContentChange} />
             </div>
           ) : (
@@ -425,6 +473,95 @@ export default function App() {
         </button>
       )}
 
+      {closeConfirmOpen && activeDoc && (
+        <div
+          onClick={e => {
+            if (e.target === e.currentTarget) setCloseConfirmOpen(false);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 40,
+          }}
+        >
+          <div
+            ref={closeConfirmRef}
+            tabIndex={-1}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const id = activeDoc.id;
+                setCloseConfirmOpen(false);
+                removeDoc(id);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setCloseConfirmOpen(false);
+              }
+            }}
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '1.2rem 1.5rem',
+              width: 360,
+              maxWidth: '90vw',
+              boxShadow: '0 18px 40px rgba(0,0,0,0.45)',
+            }}
+          >
+            <div style={{ marginBottom: '0.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>
+                Close document?
+              </div>
+              <button
+                onClick={() => setCloseConfirmOpen(false)}
+                style={{ ...iconBtnStyle, fontSize: '0.8rem' }}
+                title="Cancel (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.9rem' }}>
+              This will remove{' '}
+              <span style={{ color: 'var(--text)', fontWeight: 500 }}>
+                {activeDoc.customTitle || activeDoc.title || 'Untitled'}
+              </span>
+              {' '}from your list. Existing content stays saved in local storage.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', marginTop: '0.4rem' }}>
+              <button
+                onClick={() => setCloseConfirmOpen(false)}
+                style={{ ...pillBtnStyle, paddingInline: '0.7rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const id = activeDoc.id;
+                  setCloseConfirmOpen(false);
+                  removeDoc(id);
+                }}
+                style={{
+                  ...pillBtnStyle,
+                  paddingInline: '0.7rem',
+                  background: 'var(--accent, var(--bg))',
+                  borderColor: 'var(--border)',
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <div style={{ marginTop: '0.6rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Press Enter to confirm, Esc to cancel.
+            </div>
+          </div>
+        </div>
+      )}
+
       {shortcutsOpen && (
         <div
           onClick={e => {
@@ -441,9 +578,9 @@ export default function App() {
             zIndex: 30,
           }}
         >
-          <div
-            tabIndex={-1}
-            onKeyDown={e => {
+            <div
+              tabIndex={-1}
+              onKeyDown={e => {
               if (e.key === 'Escape') {
                 e.preventDefault();
                 setShortcutsOpen(false);
@@ -471,12 +608,26 @@ export default function App() {
                 ✕
               </button>
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.85rem' }}>
               {isMac ? '⌘' : 'Ctrl'} shortcuts work anywhere in the app.
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: '0.45rem', columnGap: '1rem', fontSize: '0.8rem' }}>
-              <span>Toggle sidebar</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', '\\']} />
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.4fr) auto',
+                rowGap: '0.5rem',
+                columnGap: '1.25rem',
+                fontSize: '0.8rem',
+              }}
+            >
+              <span>New document</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'K']} />
+
+              <span>Rename current document</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'R']} />
+
+              <span>Download current document</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} />
 
               <span>Toggle Visual / Raw</span>
               <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'E']} />
@@ -484,17 +635,14 @@ export default function App() {
               <span>Toggle Vim mode (Raw)</span>
               <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'V']} />
 
-              <span>Download current document</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} />
-
-              <span>New document</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'K']} />
+              <span>Toggle sidebar</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', '\\']} />
 
               <span>Toggle shortcuts help</span>
               <ShortcutKeys isMac={isMac} keys={['Mod', '/']} />
 
-              <span>Rename current document</span>
-              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'R']} />
+              <span>Close current document</span>
+              <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'W']} />
             </div>
           </div>
         </div>
