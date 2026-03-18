@@ -456,7 +456,7 @@ export default function App() {
               }}
               title="Max content width in pixels"
             >
-              <span style={{ color: 'var(--text-muted)' }}>Width</span>
+              <span style={{ color: 'var(--text)' }}>Width</span>
               <input
                 className="wrap-slider"
                 style={{ flex: 1, minWidth: 0, margin: '0 0.5rem' }}
