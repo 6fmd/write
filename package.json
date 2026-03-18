@@ -1,0 +1,42 @@
+{
+  "name": "write-md",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@codemirror/basic-setup": "^0.20.0",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@codemirror/view": "^6.40.0",
+    "@replit/codemirror-vim": "^6.3.0",
+    "@tiptap/extension-code-block-lowlight": "^3.20.4",
+    "@tiptap/extension-placeholder": "^3.20.4",
+    "@tiptap/extension-typography": "^3.20.4",
+    "@tiptap/pm": "^3.20.4",
+    "@tiptap/react": "^3.20.4",
+    "@tiptap/starter-kit": "^3.20.4",
+    "codemirror": "^6.0.2",
+    "lowlight": "^3.3.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tiptap-markdown": "^0.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "vite": "^8.0.0"
+  }
+}

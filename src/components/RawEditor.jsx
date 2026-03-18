@@ -1,0 +1,69 @@
+import { useEffect, useRef } from 'react';
+import { EditorView, keymap, lineNumbers } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
+import { markdown } from '@codemirror/lang-markdown';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { vim } from '@replit/codemirror-vim';
+import { oneDark } from '@codemirror/theme-one-dark';
+
+export default function RawEditor({ content, onChange, vimMode }) {
+  const containerRef = useRef(null);
+  const viewRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const extensions = [
+      ...(vimMode ? [vim()] : []),
+      history(),
+      markdown(),
+      oneDark,
+      lineNumbers(),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+      EditorView.updateListener.of(update => {
+        if (update.docChanged) {
+          onChangeRef.current(update.state.doc.toString());
+        }
+      }),
+      EditorView.theme({
+        '&': { height: '100%', background: 'transparent' },
+        '.cm-content': { fontFamily: 'var(--font-mono)', fontSize: '0.9rem' },
+        '.cm-gutters': { background: '#161616', borderRight: '1px solid #2a2a2a' },
+      }),
+    ];
+
+    const state = EditorState.create({
+      doc: content ?? '',
+      extensions,
+    });
+
+    const view = new EditorView({ state, parent: containerRef.current });
+    viewRef.current = view;
+
+    return () => {
+      view.destroy();
+      viewRef.current = null;
+    };
+  }, [vimMode]); // recreate when vim mode toggles
+
+  // Sync content in when doc changes externally
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const current = view.state.doc.toString();
+    if (current !== content) {
+      view.dispatch({
+        changes: { from: 0, to: current.length, insert: content ?? '' },
+      });
+    }
+  }, [content]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ height: '100%', overflow: 'auto', background: 'var(--bg)' }}
+    />
+  );
+}
