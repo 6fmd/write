@@ -70,6 +70,8 @@ export default function App() {
   const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
   const { theme, toggle: toggleTheme } = useTheme();
 
+  const [isDraggingOverSidebar, setIsDraggingOverSidebar] = useState(false);
+
   function isEmptyDocContent(md) {
     return (md ?? '').trim() === '';
   }
@@ -353,10 +355,45 @@ export default function App() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* Sidebar */}
       {sidebarOpen && (
-        <aside style={{
-          width: 220, background: 'var(--surface)', borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', flexShrink: 0,
-        }}>
+        <aside
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingOverSidebar(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDraggingOverSidebar(false);
+          }}
+          onDrop={async (e) => {
+            e.preventDefault();
+            setIsDraggingOverSidebar(false);
+            const files = Array.from(e.dataTransfer.files);
+            let lastId = null;
+            let addedCount = 0;
+            for (const file of files) {
+              if (file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                const text = await file.text();
+                const id = generateId();
+                const customTitle = file.name.replace(/\.[^/.]+$/, "");
+                saveDoc(id, { title: extractTitle(text) || customTitle, content: text, customTitle, updatedAt: new Date().toISOString() });
+                lastId = id;
+                addedCount++;
+              }
+            }
+            if (addedCount > 0) {
+              setDocs(listDocs());
+              if (lastId) {
+                switchDoc(lastId);
+              }
+            }
+          }}
+          style={{
+            width: 220,
+            background: isDraggingOverSidebar ? 'var(--bg)' : 'var(--surface)',
+            borderRight: isDraggingOverSidebar ? '2px dashed var(--border)' : '1px solid var(--border)',
+            display: 'flex', flexDirection: 'column', flexShrink: 0,
+            transition: 'background 0.2s, border 0.2s'
+          }}>
           <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
             <button
               onClick={() => setSidebarOpen(false)}
