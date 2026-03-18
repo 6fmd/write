@@ -570,8 +570,6 @@ export default function App() {
                 width: '100%',
                 height: '100%',
                 overflowY: 'auto',
-                display: 'flex',
-                justifyContent: 'flex-start',
               }}
             >
               <WysiwygEditor
@@ -597,6 +595,7 @@ export default function App() {
 
         {activeId && (
           <div
+            className="wrap-bar"
             style={{
               borderTop: '1px solid var(--border)',
               background: 'var(--surface)',
@@ -610,13 +609,13 @@ export default function App() {
               Wrap width
             </div>
             <input
+              className="wrap-slider"
               type="range"
               min={520}
               max={1800}
               step={20}
               value={wrapWidth}
               onChange={(e) => setWrapWidth(Number(e.target.value))}
-              style={{ flex: 1 }}
               aria-label="Wrap width"
             />
             <div

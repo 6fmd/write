@@ -34,6 +34,52 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Monochrome range slider */
+.wrap-bar .wrap-slider {
+  width: 168px;
+  flex: 0 0 168px;
+  height: 22px;
+  background: transparent;
+  accent-color: var(--accent-dim);
+}
+
+.wrap-bar .wrap-slider:focus { outline: none; }
+
+.wrap-bar .wrap-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--border);
+  border-radius: 999px;
+}
+.wrap-bar .wrap-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -4px; /* centers on 2px track */
+  border-radius: 999px;
+  background: var(--text);
+  border: 1px solid var(--border);
+}
+.wrap-bar .wrap-slider:hover::-webkit-slider-thumb {
+  background: var(--accent);
+}
+
+.wrap-bar .wrap-slider::-moz-range-track {
+  height: 2px;
+  background: var(--border);
+  border-radius: 999px;
+}
+.wrap-bar .wrap-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--text);
+  border: 1px solid var(--border);
+}
+.wrap-bar .wrap-slider:hover::-moz-range-thumb {
+  background: var(--accent);
+}
+
 /* Tiptap editor styles */
 .tiptap-editor {
   outline: none;
