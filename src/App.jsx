@@ -206,7 +206,7 @@ export default function App() {
             >
               ←
             </button>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', letterSpacing: '0.1em', flex: 1, textAlign: 'center' }}>write.6f.md</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text)', letterSpacing: '0.1em', flex: 1, textAlign: 'center' }}>write.6f.md</span>
             <button onClick={newDoc} style={iconBtnStyle} title="New document">＋</button>
           </div>
 
@@ -221,8 +221,8 @@ export default function App() {
                 style={{
                   padding: '0.5rem 1rem',
                   cursor: 'pointer',
-                  background: doc.id === activeId ? 'rgba(201,169,110,0.08)' : 'transparent',
-                  borderLeft: doc.id === activeId ? '2px solid var(--accent)' : '2px solid transparent',
+                  background: doc.id === activeId ? 'var(--bg)' : 'transparent',
+                  borderLeft: doc.id === activeId ? '2px solid var(--border)' : '2px solid transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   gap: 8,
                 }}
@@ -283,14 +283,35 @@ export default function App() {
 
           {/* Bottom controls */}
           <div style={{ padding: '0.6rem 0.75rem 0.7rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
+            {/* Vim row (always present to avoid layout shift) */}
+            <button
+              onClick={() => {
+                if (mode === 'raw') setVimMode(v => !v);
+              }}
+              style={{
+                ...pillBtnStyle,
+                justifyContent: 'space-between',
+                opacity: mode === 'raw' ? 1 : 0.4,
+                cursor: mode === 'raw' ? 'pointer' : 'default',
+                borderStyle: 'dashed',
+              }}
+              disabled={mode !== 'raw'}
+            >
+              <span>Vim mode</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: vimMode && mode === 'raw' ? 'var(--text)' : 'var(--text-muted)' }}>
+                {vimMode ? 'on' : 'off'}
+              </span>
+            </button>
+
+            {/* Mode row */}
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button
                 onClick={() => setMode('visual')}
                 style={{
                   ...pillBtnStyle,
                   flex: 1,
-                  background: mode === 'visual' ? 'var(--accent-dim)' : 'transparent',
-                  color: mode === 'visual' ? 'var(--bg)' : 'var(--text-muted)',
+                  background: mode === 'visual' ? 'var(--bg)' : 'transparent',
+                  color: mode === 'visual' ? 'var(--text)' : 'var(--text-muted)',
                 }}
               >
                 Visual
@@ -300,79 +321,62 @@ export default function App() {
                 style={{
                   ...pillBtnStyle,
                   flex: 1,
-                  background: mode === 'raw' ? 'var(--accent-dim)' : 'transparent',
-                  color: mode === 'raw' ? 'var(--bg)' : 'var(--text-muted)',
+                  background: mode === 'raw' ? 'var(--bg)' : 'transparent',
+                  color: mode === 'raw' ? 'var(--text)' : 'var(--text-muted)',
                 }}
               >
                 Raw
               </button>
             </div>
 
-            {mode === 'raw' && (
-              <button
-                onClick={() => setVimMode(v => !v)}
-                style={{
-                  ...pillBtnStyle,
-                  justifyContent: 'space-between',
-                  color: vimMode ? 'var(--accent)' : 'var(--text-muted)',
-                }}
-              >
-                <span>Vim mode</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
-                  {vimMode ? 'on' : 'off'}
-                </span>
-              </button>
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+            {/* Utility row: all matching pills */}
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button
                 onClick={toggleTheme}
                 style={{
-                  ...iconBtnStyle,
+                  ...pillBtnStyle,
+                  flex: '0 0 auto',
+                  width: 36,
+                  justifyContent: 'center',
                   fontSize: '0.9rem',
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg)',
-                  color: 'var(--text)',
                 }}
                 title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
               >
                 {theme === 'dark' ? '☀' : '☾'}
               </button>
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <button
-                  onClick={downloadCurrentDoc}
-                  style={{
-                    ...btnStyle,
-                    justifyContent: 'space-between',
-                    fontSize: '0.72rem',
-                    opacity: activeId ? 1 : 0.4,
-                    cursor: activeId ? 'pointer' : 'default',
-                  }}
-                  disabled={!activeId}
-                >
-                  <span>Download as .md</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                    {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setShortcutsOpen(true)}
-                  style={{
-                    ...btnStyle,
-                    justifyContent: 'space-between',
-                    fontSize: '0.72rem',
-                  }}
-                >
-                  <span>Keyboard shortcuts</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                    {isMac ? '⌘/' : 'Ctrl/'}
-                  </span>
-                </button>
-              </div>
+              <button
+                onClick={downloadCurrentDoc}
+                style={{
+                  ...pillBtnStyle,
+                  flex: 1,
+                  justifyContent: 'space-between',
+                  fontSize: '0.72rem',
+                  opacity: activeId ? 1 : 0.4,
+                  cursor: activeId ? 'pointer' : 'default',
+                }}
+                disabled={!activeId}
+              >
+                <span>Download as .md</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                  {isMac ? '⌘⇧S' : 'Ctrl⇧S'}
+                </span>
+              </button>
             </div>
 
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              style={{
+                ...pillBtnStyle,
+                justifyContent: 'space-between',
+                fontSize: '0.72rem',
+              }}
+            >
+              <span>Keyboard shortcuts</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                {isMac ? '⌘/' : 'Ctrl/'}
+              </span>
+            </button>
           </div>
         </aside>
       )}
@@ -384,7 +388,7 @@ export default function App() {
           {!activeId ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: 'var(--text-muted)', height: '100%' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>no document selected</span>
-              <button onClick={newDoc} style={{ ...btnStyle, color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>create one →</button>
+              <button onClick={newDoc} style={{ ...btnStyle, color: 'var(--text)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>create one →</button>
             </div>
           ) : mode === 'visual' ? (
             <div style={{ width: '100%', height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
