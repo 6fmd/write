@@ -13,7 +13,7 @@ export default function App() {
   const [docs, setDocs] = useState({});
   const [activeId, setActiveId] = useState(null);
   const [content, setContent] = useState('');
-  const [mode, setMode] = useState('wysiwyg'); // 'wysiwyg' | 'raw'
+  const [mode, setMode] = useState('visual'); // 'visual' | 'raw'
   const [vimMode, setVimMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [renamingId, setRenamingId] = useState(null);
@@ -141,10 +141,10 @@ export default function App() {
         return;
       }
 
-      // Cmd/Ctrl + Shift + E — toggle WYSIWYG / Raw
+      // Cmd/Ctrl + Shift + E — toggle Visual / Raw
       if (e.shiftKey && key === 'e') {
         e.preventDefault();
-        setMode(prev => (prev === 'wysiwyg' ? 'raw' : 'wysiwyg'));
+        setMode(prev => (prev === 'visual' ? 'raw' : 'visual'));
         return;
       }
 
@@ -206,7 +206,7 @@ export default function App() {
             >
               ←
             </button>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', letterSpacing: '0.1em', flex: 1, textAlign: 'center' }}>write.md</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent)', letterSpacing: '0.1em', flex: 1, textAlign: 'center' }}>write.6f.md</span>
             <button onClick={newDoc} style={iconBtnStyle} title="New document">＋</button>
           </div>
 
@@ -285,23 +285,23 @@ export default function App() {
           <div style={{ padding: '0.6rem 0.75rem 0.7rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button
-                onClick={() => setMode('wysiwyg')}
+                onClick={() => setMode('visual')}
                 style={{
                   ...pillBtnStyle,
                   flex: 1,
-                  background: mode === 'wysiwyg' ? 'var(--accent-soft)' : 'transparent',
-                  color: mode === 'wysiwyg' ? 'var(--accent)' : 'var(--text-muted)',
+                  background: mode === 'visual' ? 'var(--accent-dim)' : 'transparent',
+                  color: mode === 'visual' ? 'var(--bg)' : 'var(--text-muted)',
                 }}
               >
-                WYSIWYG
+                Visual
               </button>
               <button
                 onClick={() => setMode('raw')}
                 style={{
                   ...pillBtnStyle,
                   flex: 1,
-                  background: mode === 'raw' ? 'var(--accent-soft)' : 'transparent',
-                  color: mode === 'raw' ? 'var(--accent)' : 'var(--text-muted)',
+                  background: mode === 'raw' ? 'var(--accent-dim)' : 'transparent',
+                  color: mode === 'raw' ? 'var(--bg)' : 'var(--text-muted)',
                 }}
               >
                 Raw
@@ -329,8 +329,10 @@ export default function App() {
                 onClick={toggleTheme}
                 style={{
                   ...iconBtnStyle,
-                  fontSize: '0.8rem',
-                  color: 'var(--text-muted)',
+                  fontSize: '0.9rem',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg)',
+                  color: 'var(--text)',
                 }}
                 title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
               >
@@ -384,7 +386,7 @@ export default function App() {
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>no document selected</span>
               <button onClick={newDoc} style={{ ...btnStyle, color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>create one →</button>
             </div>
-          ) : mode === 'wysiwyg' ? (
+          ) : mode === 'visual' ? (
             <div style={{ width: '100%', height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
               <WysiwygEditor key={activeId} content={content} onChange={handleContentChange} />
             </div>
@@ -472,7 +474,7 @@ export default function App() {
               <span>Toggle sidebar</span>
               <ShortcutKeys isMac={isMac} keys={['Mod', '\\']} />
 
-              <span>Toggle WYSIWYG / Raw</span>
+              <span>Toggle Visual / Raw</span>
               <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'E']} />
 
               <span>Toggle Vim mode (Raw)</span>
@@ -498,15 +500,21 @@ export default function App() {
 }
 
 const btnStyle = {
-  background: 'transparent', border: 'none', color: 'var(--text)',
-  cursor: 'pointer', padding: '0.25rem 0.4rem', borderRadius: 3,
-  fontFamily: 'var(--font-sans)', fontSize: '0.8rem',
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--text)',
+  cursor: 'pointer',
+  padding: '0.25rem 0.4rem',
+  borderRadius: 4,
+  fontFamily: 'var(--font-sans)',
+  fontSize: '0.8rem',
   lineHeight: 1,
+  transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease',
 };
 
 const iconBtnStyle = {
   ...btnStyle,
-  padding: '0.15rem 0.3rem',
+  padding: '0.2rem 0.45rem',
   borderRadius: 999,
 };
 

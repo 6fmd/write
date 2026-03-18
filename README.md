@@ -4,7 +4,7 @@ A minimal markdown editor. Runs entirely in the browser — no server required.
 
 ## Features
 
-- **WYSIWYG** editing via Tiptap with full markdown support
+- **Visual mode** via Tiptap with full markdown support
 - **Raw mode** with CodeMirror 6 + optional vim keybindings
 - **localStorage** persistence — documents survive page refresh
 - **GitHub sync** — push/pull `.md` files to any repo via the GitHub API (PAT auth, no OAuth server needed)
