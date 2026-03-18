@@ -6,12 +6,15 @@ import Fuse from 'fuse.js';
 import {
   listDocs, getDoc, saveDoc, deleteDoc,
   getActiveDocId, setActiveDocId, generateId, extractTitle,
+  migrateFromLocalStorage, getStorageUsage
 } from './lib/storage';
 
 const AUTOSAVE_DELAY = 800;
 
 export default function App() {
-  const [docs, setDocs] = useState(() => listDocs());
+  const [docs, setDocs] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [storageUsage, setStorageUsage] = useState(null);
   const [maxWidthLimit, setMaxWidthLimit] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1800);
   const [wrapWidth, setWrapWidth] = useState(() => {
     const limit = typeof window !== 'undefined' ? window.innerWidth : 1800;
@@ -32,21 +35,36 @@ export default function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  const [activeId, setActiveId] = useState(() => {
-    const stored = listDocs();
-    const lastId = getActiveDocId();
-    if (lastId && stored[lastId]) return lastId;
-    const ids = Object.keys(stored);
-    return ids.length > 0 ? ids[0] : null;
-  });
-  const [content, setContent] = useState(() => {
-    const stored = listDocs();
-    const lastId = getActiveDocId();
-    if (lastId && stored[lastId]) return stored[lastId].content ?? '';
-    const ids = Object.keys(stored);
-    if (ids.length > 0) return stored[ids[0]]?.content ?? '';
-    return '';
-  });
+
+  const [activeId, setActiveId] = useState(null);
+  const [content, setContent] = useState('');
+
+  const fetchUsage = useCallback(async () => {
+    const usage = await getStorageUsage();
+    if (usage) setStorageUsage(usage);
+  }, []);
+
+  useEffect(() => {
+    async function init() {
+      await migrateFromLocalStorage();
+      const stored = await listDocs();
+      const lastId = await getActiveDocId();
+      setDocs(stored);
+      if (lastId && stored[lastId]) {
+        setActiveId(lastId);
+        setContent(stored[lastId].content ?? '');
+      } else {
+        const ids = Object.keys(stored);
+        if (ids.length > 0) {
+          setActiveId(ids[0]);
+          setContent(stored[ids[0]]?.content ?? '');
+        }
+      }
+      setIsLoading(false);
+      fetchUsage();
+    }
+    init();
+  }, [fetchUsage]);
   const [mode, setMode] = useState('visual'); // 'visual' | 'raw'
   const [vimMode, setVimMode] = useState(false);
   const [rawFocusToken, setRawFocusToken] = useState(0);
@@ -58,9 +76,13 @@ export default function App() {
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [closeTargetId, setCloseTargetId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [defaultExportFormat, setDefaultExportFormat] = useState(() => {
-    try { return localStorage.getItem('write-md:exportFormat') || 'md'; }
-    catch { return 'md'; }
+  const [statsPinned, setStatsPinned] = useState(() => {
+    try { return localStorage.getItem('write-md:statsPinned') === 'true'; }
+    catch { return false; }
+  });
+  const [storagePinned, setStoragePinned] = useState(() => {
+    try { return localStorage.getItem('write-md:storagePinned') === 'true'; }
+    catch { return false; }
   });
   const autosaveTimer = useRef(null);
   const closeConfirmRef = useRef(null);
@@ -92,13 +114,15 @@ export default function App() {
     setCloseConfirmOpen(true);
   }
 
-  function newDoc() {
+  async function newDoc() {
     const id = generateId();
-    saveDoc(id, { title: 'Untitled', content: '', customTitle: null, updatedAt: new Date().toISOString() });
-    setDocs(listDocs());
+    await saveDoc(id, { title: 'Untitled', content: '', customTitle: null, updatedAt: new Date().toISOString() });
+    const d = await listDocs();
+    setDocs(d);
     switchDoc(id, '');
     if (mode === 'raw') setRawFocusToken(t => t + 1);
     else setVisualFocusToken(t => t + 1);
+    fetchUsage();
   }
 
   function switchDoc(id, forcedContent) {
@@ -108,35 +132,38 @@ export default function App() {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     setActiveId(id);
     setActiveDocId(id);
-    const c = forcedContent !== undefined ? forcedContent : (getDoc(id)?.content ?? '');
+    const c = forcedContent !== undefined ? forcedContent : (docs[id]?.content ?? '');
     setContent(c);
   }
 
-  function removeDoc(id) {
-    deleteDoc(id);
-    const remaining = Object.keys(listDocs());
-    setDocs(listDocs());
+  async function removeDoc(id) {
+    await deleteDoc(id);
+    const d = await listDocs();
+    const remaining = Object.keys(d);
+    setDocs(d);
     if (activeId === id) {
-      if (remaining.length > 0) { switchDoc(remaining[0]); }
+      if (remaining.length > 0) { switchDoc(remaining[0], d[remaining[0]]?.content ?? ''); }
       else { setActiveId(null); setContent(''); }
     }
+    fetchUsage();
   }
 
   const handleContentChange = useCallback((newContent) => {
     setContent(newContent);
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => {
+    autosaveTimer.current = setTimeout(async () => {
       if (!activeId) return;
-      const existing = getDoc(activeId);
+      const existing = await getDoc(activeId);
       const title = extractTitle(newContent);
       // Never overwrite a manually-set customTitle from autosave
       const payload = existing?.customTitle
         ? { content: newContent }
         : { title, content: newContent };
-      saveDoc(activeId, payload);
-      setDocs(listDocs());
+      await saveDoc(activeId, payload);
+      setDocs(await listDocs());
+      fetchUsage();
     }, AUTOSAVE_DELAY);
-  }, [activeId]);
+  }, [activeId, fetchUsage]);
 
   const activeDoc = activeId ? docs[activeId] : null;
   const sortedDocs = Object.values(docs).sort((a, b) =>
@@ -163,11 +190,19 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('write-md:exportFormat', defaultExportFormat);
+      localStorage.setItem('write-md:statsPinned', String(statsPinned));
     } catch {
       // ignore
     }
-  }, [defaultExportFormat]);
+  }, [statsPinned]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('write-md:storagePinned', String(storagePinned));
+    } catch {
+      // ignore
+    }
+  }, [storagePinned]);
 
   function currentTitleForDownload() {
     if (!activeDoc) return 'Untitled';
@@ -190,22 +225,24 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
-  function downloadCurrentDocAsPDF() {
+  function handlePrint() {
     if (!activeId || !activeDoc) return;
     window.print();
   }
+
 
   function beginRename(doc) {
     setRenamingId(doc.id);
     setRenameValue(doc.customTitle ?? doc.title ?? 'Untitled');
   }
 
-  function commitRename(docId) {
+  async function commitRename(docId) {
     const value = renameValue.trim();
-    saveDoc(docId, { customTitle: value || null });
-    setDocs(listDocs());
+    await saveDoc(docId, { customTitle: value || null });
+    setDocs(await listDocs());
     setRenamingId(null);
     setRenameValue('');
+    fetchUsage();
   }
 
   function cancelRename() {
@@ -269,8 +306,7 @@ export default function App() {
       // Cmd/Ctrl + Shift + S — download current doc
       if (e.shiftKey && key === 's') {
         e.preventDefault();
-        if (defaultExportFormat === 'pdf') downloadCurrentDocAsPDF();
-        else downloadCurrentDoc();
+        downloadCurrentDoc();
         return;
       }
 
@@ -295,6 +331,13 @@ export default function App() {
         return;
       }
 
+      // Cmd/Ctrl + P — Print
+      if (!e.shiftKey && key === 'p') {
+        e.preventDefault();
+        handlePrint();
+        return;
+      }
+
       // Cmd/Ctrl + / — toggle shortcuts help overlay
       if (!e.shiftKey && key === '/') {
         e.preventDefault();
@@ -316,7 +359,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeydown, true);
     return () => window.removeEventListener('keydown', handleKeydown, true);
-  }, [isMac, mode, vimMode, activeId, content, docs, downloadCurrentDoc, downloadCurrentDocAsPDF, newDoc, activeDoc, beginRename, shortcutsOpen, closeConfirmOpen, renamingId, requestCloseDoc, defaultExportFormat]);
+  }, [isMac, mode, vimMode, activeId, content, docs, downloadCurrentDoc, handlePrint, newDoc, activeDoc, beginRename, shortcutsOpen, closeConfirmOpen, renamingId, requestCloseDoc]);
 
   // Focus the close-confirm dialog so Enter/Esc work immediately
   useEffect(() => {
@@ -351,6 +394,22 @@ export default function App() {
   const charCount = content.length;
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
 
+  const formatBytes = (bytes) => {
+    if (bytes === 0 || !bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', color: 'var(--text-muted)' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>Loading documents...</span>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* Sidebar */}
@@ -370,21 +429,24 @@ export default function App() {
             const files = Array.from(e.dataTransfer.files);
             let lastId = null;
             let addedCount = 0;
+            let lastContent = '';
             for (const file of files) {
               if (file.name.endsWith('.md') || file.name.endsWith('.txt')) {
                 const text = await file.text();
                 const id = generateId();
                 const customTitle = file.name.replace(/\.[^/.]+$/, "");
-                saveDoc(id, { title: extractTitle(text) || customTitle, content: text, customTitle, updatedAt: new Date().toISOString() });
+                await saveDoc(id, { title: extractTitle(text) || customTitle, content: text, customTitle, updatedAt: new Date().toISOString() });
                 lastId = id;
+                lastContent = text;
                 addedCount++;
               }
             }
             if (addedCount > 0) {
-              setDocs(listDocs());
+              setDocs(await listDocs());
               if (lastId) {
-                switchDoc(lastId);
+                switchDoc(lastId, lastContent);
               }
+              fetchUsage();
             }
           }}
           style={{
@@ -643,7 +705,7 @@ export default function App() {
             {/* Download row */}
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <button
-                onClick={downloadCurrentDocAsPDF}
+                onClick={handlePrint}
                 style={{
                   ...pillBtnStyle,
                   flex: 1,
@@ -653,9 +715,9 @@ export default function App() {
                   cursor: activeId ? 'pointer' : 'default',
                 }}
                 disabled={!activeId}
-                title="Print / Save as PDF"
+                title={isMac ? "Print (⌘P)" : "Print (Ctrl+P)"}
               >
-                PDF
+                Print
               </button>
               <button
                 onClick={downloadCurrentDoc}
@@ -668,9 +730,9 @@ export default function App() {
                   cursor: activeId ? 'pointer' : 'default',
                 }}
                 disabled={!activeId}
-                title="Download as .md"
+                title={isMac ? "Download as .md (⌘⇧S)" : "Download as .md (Ctrl⇧S)"}
               >
-                MD
+                Download (.md)
               </button>
             </div>
 
@@ -782,6 +844,36 @@ export default function App() {
         >
           ☰
         </button>
+      )}
+
+      {/* Pinned Stats & Storage */}
+      {(statsPinned || storagePinned) && (
+        <div style={{
+          position: 'absolute',
+          bottom: 12,
+          right: 24,
+          display: 'flex',
+          gap: '1rem',
+          fontSize: '0.7rem',
+          color: 'var(--text-muted)',
+          background: 'var(--surface)',
+          padding: '0.4rem 0.8rem',
+          borderRadius: 999,
+          border: '1px solid var(--border)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          zIndex: 10,
+        }}>
+          {statsPinned && (
+            <div style={{ display: 'flex', gap: '0.8rem' }}>
+              <span>{wordCount} words</span>
+              <span>{charCount} chars</span>
+            </div>
+          )}
+          {statsPinned && storagePinned && <div style={{ width: 1, background: 'var(--border)' }} />}
+          {storagePinned && storageUsage && (
+            <span>{formatBytes(storageUsage.usage)} / {formatBytes(storageUsage.quota)}</span>
+          )}
+        </div>
       )}
 
       {closeConfirmOpen && closeTargetDoc && (
@@ -899,15 +991,15 @@ export default function App() {
             zIndex: 30,
           }}
         >
-            <div
-              ref={shortcutsRef}
-              tabIndex={-1}
-              onKeyDown={e => {
-                if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setShortcutsOpen(false);
-                }
-              }}
+          <div
+            ref={shortcutsRef}
+            tabIndex={-1}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setShortcutsOpen(false);
+              }
+            }}
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',
@@ -930,18 +1022,50 @@ export default function App() {
                 ✕
               </button>
             </div>
-            
+
             {/* Document Stats */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text)', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-              <div><strong>{wordCount}</strong> <span style={{color: 'var(--text-muted)'}}>words</span></div>
-              <div><strong>{charCount}</strong> <span style={{color: 'var(--text-muted)'}}>chars</span></div>
-              <div><strong>{readTime}</strong> <span style={{color: 'var(--text-muted)'}}>min read</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>Document Stats</div>
+              <button
+                onClick={() => setStatsPinned(p => !p)}
+                style={{ ...pillBtnStyle, fontSize: '0.7rem', padding: '0.15rem 0.5rem', color: statsPinned ? 'var(--text)' : 'var(--text-muted)' }}
+                title={statsPinned ? "Unpin from screen" : "Pin to screen"}
+              >
+                {statsPinned ? 'unpin' : 'pin'}
+              </button>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text)', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+              <div><strong>{wordCount}</strong> <span style={{ color: 'var(--text-muted)' }}>words</span></div>
+              <div><strong>{charCount}</strong> <span style={{ color: 'var(--text-muted)' }}>chars</span></div>
+              <div><strong>{readTime}</strong> <span style={{ color: 'var(--text-muted)' }}>min read</span></div>
+            </div>
+
+            {/* Storage Usage */}
+            {storageUsage && (
+              <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>Storage Usage</div>
+                  <button
+                    onClick={() => setStoragePinned(p => !p)}
+                    style={{ ...pillBtnStyle, fontSize: '0.7rem', padding: '0.15rem 0.5rem', color: storagePinned ? 'var(--text)' : 'var(--text-muted)' }}
+                    title={storagePinned ? "Unpin from screen" : "Pin to screen"}
+                  >
+                    {storagePinned ? 'unpin' : 'pin'}
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textAlign: 'right' }}>
+                  {formatBytes(storageUsage.usage)} / {formatBytes(storageUsage.quota)}
+                </div>
+                <div style={{ width: '100%', height: 6, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, (storageUsage.usage / storageUsage.quota) * 100)}%`, height: '100%', background: 'var(--accent)' }} />
+                </div>
+              </div>
+            )}
 
             {/* Preferences */}
             <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.6rem' }}>Preferences</div>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.75rem', width: '80px', color: 'var(--text-muted)', alignSelf: 'center' }}>Theme</span>
                 <button
                   onClick={() => theme !== 'light' && toggleTheme()}
@@ -951,17 +1075,6 @@ export default function App() {
                   onClick={() => theme !== 'dark' && toggleTheme()}
                   style={{ ...pillBtnStyle, flex: 1, background: theme === 'dark' ? 'var(--accent)' : 'transparent', color: theme === 'dark' ? 'var(--surface)' : 'var(--text)' }}
                 >Dark</button>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.75rem', width: '80px', color: 'var(--text-muted)' }} title="Format for Cmd+Shift+S">Default DL</span>
-                <button
-                  onClick={() => setDefaultExportFormat('pdf')}
-                  style={{ ...pillBtnStyle, flex: 1, background: defaultExportFormat === 'pdf' ? 'var(--accent)' : 'transparent', color: defaultExportFormat === 'pdf' ? 'var(--surface)' : 'var(--text)' }}
-                >PDF</button>
-                <button
-                  onClick={() => setDefaultExportFormat('md')}
-                  style={{ ...pillBtnStyle, flex: 1, background: defaultExportFormat === 'md' ? 'var(--accent)' : 'transparent', color: defaultExportFormat === 'md' ? 'var(--surface)' : 'var(--text)' }}
-                >MD</button>
               </div>
             </div>
 
@@ -996,7 +1109,11 @@ export default function App() {
                   <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'F']} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Download ({defaultExportFormat.toUpperCase()})</span>
+                  <span>Print</span>
+                  <ShortcutKeys isMac={isMac} keys={['Mod', 'P']} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span>Download (MD)</span>
                   <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} />
                 </div>
               </div>

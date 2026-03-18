@@ -1,20 +1,44 @@
+import { get, set, del } from 'idb-keyval';
+
 const KEY = 'write-md:documents';
 const ACTIVE_KEY = 'write-md:active';
 
-export function listDocs() {
+export async function migrateFromLocalStorage() {
+  const localDocsRaw = localStorage.getItem(KEY);
+  if (localDocsRaw) {
+    try {
+      const docs = JSON.parse(localDocsRaw);
+      await set(KEY, docs);
+      localStorage.removeItem(KEY);
+      
+      const activeId = localStorage.getItem(ACTIVE_KEY);
+      if (activeId) {
+        await set(ACTIVE_KEY, activeId);
+        localStorage.removeItem(ACTIVE_KEY);
+      }
+      console.log('Migrated storage to IndexedDB');
+    } catch (e) {
+      console.error('Failed to migrate data:', e);
+    }
+  }
+}
+
+export async function listDocs() {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || '{}');
+    const data = await get(KEY);
+    return data || {};
   } catch {
     return {};
   }
 }
 
-export function getDoc(id) {
-  return listDocs()[id] ?? null;
+export async function getDoc(id) {
+  const docs = await listDocs();
+  return docs[id] ?? null;
 }
 
-export function saveDoc(id, { title, content, customTitle, updatedAt }) {
-  const docs = listDocs();
+export async function saveDoc(id, { title, content, customTitle, updatedAt }) {
+  const docs = await listDocs();
   const prev = docs[id] ?? { id };
   const next = {
     ...prev,
@@ -25,22 +49,22 @@ export function saveDoc(id, { title, content, customTitle, updatedAt }) {
     id,
   };
   docs[id] = next;
-  localStorage.setItem(KEY, JSON.stringify(docs));
+  await set(KEY, docs);
   return docs[id];
 }
 
-export function deleteDoc(id) {
-  const docs = listDocs();
+export async function deleteDoc(id) {
+  const docs = await listDocs();
   delete docs[id];
-  localStorage.setItem(KEY, JSON.stringify(docs));
+  await set(KEY, docs);
 }
 
-export function getActiveDocId() {
-  return localStorage.getItem(ACTIVE_KEY);
+export async function getActiveDocId() {
+  return await get(ACTIVE_KEY);
 }
 
-export function setActiveDocId(id) {
-  localStorage.setItem(ACTIVE_KEY, id);
+export async function setActiveDocId(id) {
+  await set(ACTIVE_KEY, id);
 }
 
 export function generateId() {
@@ -50,4 +74,16 @@ export function generateId() {
 export function extractTitle(markdown) {
   const match = markdown.match(/^#\s+(.+)/m);
   return match ? match[1].trim() : 'Untitled';
+}
+
+export async function getStorageUsage() {
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const { usage, quota } = await navigator.storage.estimate();
+      return { usage, quota };
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
