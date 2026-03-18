@@ -80,10 +80,5 @@ export default function RawEditor({ content, onChange, vimMode, theme, focusToke
     }
   }, [content]);
 
-  return (
-    <div
-      ref={containerRef}
-      style={{ height: '100%', overflow: 'auto', background: 'var(--bg)' }}
-    />
-  );
+  return <div ref={containerRef} className="raw-editor-container" />;
 }

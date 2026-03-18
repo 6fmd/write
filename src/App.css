@@ -1,0 +1,590 @@
+/* ─── Loading ─────────────────────────────────────────────────── */
+
+.loading-screen {
+  display: flex;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg);
+  color: var(--text-muted);
+}
+
+.loading-text {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+/* ─── App shell ───────────────────────────────────────────────── */
+
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── Sidebar backdrop (mobile) ──────────────────────────────── */
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────────── */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  transition: background 0.2s, border 0.2s;
+}
+
+.sidebar--mobile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100%;
+  z-index: 100;
+}
+
+.sidebar--dragging {
+  background: var(--bg);
+  border-right: 2px dashed var(--border);
+}
+
+.sidebar-header {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sidebar-brand {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text);
+  letter-spacing: 0.1em;
+  flex: 1;
+  text-align: center;
+}
+
+/* ─── Search ──────────────────────────────────────────────────── */
+
+.sidebar-search {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.search-wrap {
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 1.5rem 0.3rem 0.5rem;
+  box-sizing: border-box;
+}
+
+.search-clear {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0;
+}
+
+/* ─── Doc list ────────────────────────────────────────────────── */
+
+.doc-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.doc-list-empty {
+  padding: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.doc-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background: transparent;
+  border-left: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.doc-item--active {
+  background: var(--bg);
+  border-left-color: var(--border);
+}
+
+.doc-title {
+  font-size: 0.82rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  user-select: none;
+}
+
+.doc-rename-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.15rem 0.25rem;
+}
+
+/* ─── Sidebar footer ──────────────────────────────────────────── */
+
+.sidebar-footer {
+  padding: 0.6rem 0.75rem 0.7rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.width-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: default;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.72rem;
+  gap: 0.25rem;
+}
+
+.width-label {
+  color: var(--text);
+}
+
+.width-value {
+  font-family: var(--font-mono);
+  color: var(--text);
+  width: 3.5ch;
+  text-align: right;
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* ─── Sidebar resize handle ───────────────────────────────────── */
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+/* ─── Main panel ──────────────────────────────────────────────── */
+
+.main-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.editor-area--centered {
+  justify-content: center;
+}
+
+.editor-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--text-muted);
+  height: 100%;
+}
+
+.editor-empty-hint {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.editor-scroll {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.editor-fill {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── Floating sidebar toggle ─────────────────────────────────── */
+
+.sidebar-toggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  padding: 0.15rem 0.3rem;
+}
+
+/* ─── Pinned stats pill ───────────────────────────────────────── */
+
+.pinned-stats {
+  position: absolute;
+  bottom: 12px;
+  right: 24px;
+  display: flex;
+  gap: 1rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.pinned-stats__counts {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.pinned-stats__divider {
+  width: 1px;
+  background: var(--border);
+}
+
+/* ─── Overlay (dialog backdrop) ──────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay--front { z-index: 40; }
+.overlay--back  { z-index: 30; }
+
+/* ─── Dialog ──────────────────────────────────────────────────── */
+
+.dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  max-width: 90vw;
+}
+
+.dialog--confirm {
+  padding: 1.2rem 1.5rem;
+  width: 360px;
+}
+
+.dialog--shortcuts {
+  padding: 1.5rem 1.75rem;
+  width: 420px;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.dialog-header--lg {
+  margin-bottom: 0.75rem;
+}
+
+.dialog-title {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dialog-title--lg {
+  font-size: 0.95rem;
+}
+
+.dialog-body {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.9rem;
+}
+
+.dialog-body strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.dialog-hint {
+  margin-top: 0.6rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ─── Shortcuts panel sections ────────────────────────────────── */
+
+.section {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.section-header .section-title {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.section > .section-title {
+  margin-bottom: 0.6rem;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.stats-muted {
+  color: var(--text-muted);
+}
+
+.storage-amount {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  text-align: right;
+}
+
+.storage-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.storage-bar__fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.prefs-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.prefs-label {
+  font-size: 0.75rem;
+  width: 80px;
+  color: var(--text-muted);
+  align-self: center;
+}
+
+.shortcuts-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 0.8rem;
+}
+
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.shortcuts-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+/* ─── Keyboard keys ───────────────────────────────────────────── */
+
+.kbd-row {
+  display: flex;
+  gap: 0.25rem;
+}
+
+kbd.key {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.3rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  min-width: 16px;
+  text-align: center;
+}
+
+/* ─── Buttons ──────────────────────────────────────────────────── */
+
+.btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+.btn-pill {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+/* Modifier: active/selected mode button (bg tint) */
+.btn-pill--active {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Modifier: inactive mode button */
+.btn-pill--inactive {
+  color: var(--text-muted);
+}
+
+/* Modifier: muted text (e.g. unpin state) */
+.btn-pill--muted {
+  color: var(--text-muted);
+}
+
+/* Modifier: filled accent (e.g. active theme, delete) */
+.btn-pill--selected {
+  background: var(--accent);
+  border-color: var(--border);
+  color: var(--surface);
+}
+
+/* Modifier: full-width (e.g. More... button) */
+.btn-pill--full {
+  width: 100%;
+  margin-top: 0.1rem;
+}
+
+/* Modifier: flex-grow (e.g. mode switcher buttons) */
+.btn--flex {
+  flex: 1;
+}
+
+/* Modifier: monospace font */
+.btn--mono {
+  font-family: var(--font-mono);
+}
+
+/* Modifier: dimmed action buttons (rename/delete in doc list) */
+.btn--dim {
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.btn:disabled,
+.btn-pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

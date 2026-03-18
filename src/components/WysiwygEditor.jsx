@@ -42,5 +42,5 @@ export default function WysiwygEditor({ content, onChange, focusToken }) {
     editor.commands.focus('start');
   }, [focusToken, editor]);
 
-  return <EditorContent editor={editor} style={{ height: '100%', width: '100%' }} />;
+  return <EditorContent editor={editor} className="editor-fill" />;
 }

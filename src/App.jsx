@@ -8,6 +8,7 @@ import {
   getActiveDocId, setActiveDocId, generateId, extractTitle,
   migrateFromLocalStorage, getStorageUsage
 } from './lib/storage';
+import './App.css';
 
 const AUTOSAVE_DELAY = 800;
 
@@ -67,6 +68,7 @@ export default function App() {
     }
     init();
   }, [fetchUsage]);
+
   const [mode, setMode] = useState('visual'); // 'visual' | 'raw'
   const [vimMode, setVimMode] = useState(false);
   const [rawFocusToken, setRawFocusToken] = useState(0);
@@ -95,6 +97,7 @@ export default function App() {
       return 220;
     }
   });
+
   const isResizingSidebar = useRef(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
@@ -117,7 +120,6 @@ export default function App() {
     const doc = docs[id];
     if (!doc) return;
 
-    // For the active doc, rely on in-memory content (autosave is delayed).
     const effectiveContent = id === activeId ? content : (doc.content ?? '');
     if (isEmptyDocContent(effectiveContent)) {
       removeDoc(id);
@@ -140,8 +142,6 @@ export default function App() {
   }
 
   function switchDoc(id, forcedContent) {
-    // Prevent accidental reloads (e.g. click bubbling from rename input) from
-    // overwriting in-memory edits with last-saved storage content.
     if (id === activeId && forcedContent === undefined) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     setActiveId(id);
@@ -169,7 +169,6 @@ export default function App() {
       if (!activeId) return;
       const existing = await getDoc(activeId);
       const title = extractTitle(newContent);
-      // Never overwrite a manually-set customTitle from autosave
       const payload = existing?.customTitle
         ? { content: newContent }
         : { title, content: newContent };
@@ -195,19 +194,11 @@ export default function App() {
   }, [sortedDocs, searchQuery]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('write-md:wrapWidthPx', String(wrapWidth));
-    } catch {
-      // ignore
-    }
+    try { localStorage.setItem('write-md:wrapWidthPx', String(wrapWidth)); } catch { }
   }, [wrapWidth]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('write-md:sidebarWidth', String(sidebarWidth));
-    } catch {
-      // ignore
-    }
+    try { localStorage.setItem('write-md:sidebarWidth', String(sidebarWidth)); } catch { }
   }, [sidebarWidth]);
 
   useEffect(() => {
@@ -231,19 +222,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('write-md:statsPinned', String(statsPinned));
-    } catch {
-      // ignore
-    }
+    try { localStorage.setItem('write-md:statsPinned', String(statsPinned)); } catch { }
   }, [statsPinned]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('write-md:storagePinned', String(storagePinned));
-    } catch {
-      // ignore
-    }
+    try { localStorage.setItem('write-md:storagePinned', String(storagePinned)); } catch { }
   }, [storagePinned]);
 
   function currentTitleForDownload() {
@@ -271,7 +254,6 @@ export default function App() {
     if (!activeId || !activeDoc) return;
     window.print();
   }
-
 
   function beginRename(doc) {
     setRenamingId(doc.id);
@@ -303,91 +285,66 @@ export default function App() {
       const isMod = isMac ? e.metaKey : e.ctrlKey;
       if (!isMod) return;
 
-      // Normalize key to lower-case for letters
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
 
-      // Cmd/Ctrl + Shift + F — Focus search
       if (e.shiftKey && key === 'f') {
         e.preventDefault();
         setSidebarOpen(true);
-        // Small timeout to allow sidebar to open if it was closed
         setTimeout(() => searchInputRef.current?.focus(), 50);
         return;
       }
-
-      // Cmd/Ctrl + \
       if (!e.shiftKey && key === '\\') {
         e.preventDefault();
         setSidebarOpen(prev => !prev);
         return;
       }
-
-      // Cmd/Ctrl + Shift + E — toggle Visual / Raw
       if (e.shiftKey && key === 'e') {
         e.preventDefault();
         setMode(prev => (prev === 'visual' ? 'raw' : 'visual'));
         return;
       }
-
-      // Cmd/Ctrl + Shift + V — switch to Raw + Vim
       if (e.shiftKey && key === 'v') {
         e.preventDefault();
-        // If already in Raw+Vim, this exits Vim back to normal Raw.
         if (mode === 'raw' && vimMode) {
           setVimMode(false);
           setRawFocusToken(t => t + 1);
           return;
         }
-        // Otherwise, force Raw + Vim immediately.
         setMode('raw');
         setVimMode(true);
         setRawFocusToken(t => t + 1);
         return;
       }
-
-      // Cmd/Ctrl + Shift + S — download current doc
       if (e.shiftKey && key === 's') {
         e.preventDefault();
         downloadCurrentDoc();
         return;
       }
-
-      // Cmd/Ctrl + Shift + K — new document
       if (e.shiftKey && key === 'k') {
         e.preventDefault();
         newDoc();
         return;
       }
-
-      // Cmd/Ctrl + Shift + R — rename current document
       if (e.shiftKey && key === 'r' && activeDoc) {
         e.preventDefault();
         beginRename(activeDoc);
         return;
       }
-
-      // Cmd/Ctrl + Shift + X — close current document (confirm only if non-empty)
       if (e.shiftKey && key === 'x' && activeId) {
         e.preventDefault();
         requestCloseDoc(activeId);
         return;
       }
-
-      // Cmd/Ctrl + P — Print
       if (!e.shiftKey && key === 'p') {
         e.preventDefault();
         handlePrint();
         return;
       }
-
-      // Cmd/Ctrl + / — toggle shortcuts help overlay
       if (!e.shiftKey && key === '/') {
         e.preventDefault();
         setShortcutsOpen(prev => !prev);
         return;
       }
-
-      // Escape — focus editor if focused elsewhere
       if (key === 'escape' && !shortcutsOpen && !closeConfirmOpen && !renamingId) {
         const active = document.activeElement;
         const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
@@ -403,28 +360,18 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeydown, true);
   }, [isMac, mode, vimMode, activeId, content, docs, downloadCurrentDoc, handlePrint, newDoc, activeDoc, beginRename, shortcutsOpen, closeConfirmOpen, renamingId, requestCloseDoc]);
 
-  // Focus the close-confirm dialog so Enter/Esc work immediately
   useEffect(() => {
-    if (closeConfirmOpen && closeConfirmRef.current) {
-      closeConfirmRef.current.focus();
-    }
+    if (closeConfirmOpen && closeConfirmRef.current) closeConfirmRef.current.focus();
   }, [closeConfirmOpen]);
 
-  // Focus the shortcuts dialog so Esc works immediately
   useEffect(() => {
-    if (shortcutsOpen && shortcutsRef.current) {
-      shortcutsRef.current.focus();
-    }
+    if (shortcutsOpen && shortcutsRef.current) shortcutsRef.current.focus();
   }, [shortcutsOpen]);
 
-  // Ensure Esc closes the shortcuts menu even if focus is elsewhere
   useEffect(() => {
     if (!shortcutsOpen) return;
     function onKeydown(e) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setShortcutsOpen(false);
-      }
+      if (e.key === 'Escape') { e.preventDefault(); setShortcutsOpen(false); }
     }
     window.addEventListener('keydown', onKeydown, true);
     return () => window.removeEventListener('keydown', onKeydown, true);
@@ -446,32 +393,24 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg)', color: 'var(--text-muted)' }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>Loading documents...</span>
+      <div className="loading-screen">
+        <span className="loading-text">Loading documents...</span>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="app">
       {/* Mobile sidebar backdrop */}
       {isMobile && sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.45)' }}
-        />
+        <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
       )}
+
       {/* Sidebar */}
       {sidebarOpen && (
         <aside
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDraggingOverSidebar(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            setIsDraggingOverSidebar(false);
-          }}
+          onDragOver={(e) => { e.preventDefault(); setIsDraggingOverSidebar(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDraggingOverSidebar(false); }}
           onDrop={async (e) => {
             e.preventDefault();
             setIsDraggingOverSidebar(false);
@@ -483,7 +422,7 @@ export default function App() {
               if (file.name.endsWith('.md') || file.name.endsWith('.txt')) {
                 const text = await file.text();
                 const id = generateId();
-                const customTitle = file.name.replace(/\.[^/.]+$/, "");
+                const customTitle = file.name.replace(/\.[^/.]+$/, '');
                 await saveDoc(id, { title: extractTitle(text) || customTitle, content: text, customTitle, updatedAt: new Date().toISOString() });
                 lastId = id;
                 lastContent = text;
@@ -492,46 +431,40 @@ export default function App() {
             }
             if (addedCount > 0) {
               setDocs(await listDocs());
-              if (lastId) {
-                switchDoc(lastId, lastContent);
-              }
+              if (lastId) switchDoc(lastId, lastContent);
               fetchUsage();
             }
           }}
-          className={isMobile ? 'sidebar sidebar-mobile' : 'sidebar'}
-          style={{
-            width: isMobile ? '100vw' : sidebarWidth,
-            background: isDraggingOverSidebar ? 'var(--bg)' : 'var(--surface)',
-            borderRight: isDraggingOverSidebar ? '2px dashed var(--border)' : '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', flexShrink: 0,
-            position: 'relative',
-            transition: 'background 0.2s, border 0.2s',
-            ...(isMobile ? { position: 'fixed', top: 0, left: 0, height: '100%', zIndex: 100 } : {}),
-          }}>
-          <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+          className={[
+            'sidebar',
+            isMobile ? 'sidebar--mobile sidebar-mobile' : '',
+            isDraggingOverSidebar ? 'sidebar--dragging' : '',
+          ].filter(Boolean).join(' ')}
+          style={!isMobile ? { width: sidebarWidth } : undefined}
+        >
+          {/* Header */}
+          <div className="sidebar-header">
             <button
+              className="btn-icon"
               onClick={() => setSidebarOpen(false)}
-              style={{ ...iconBtnStyle, fontSize: '0.75rem' }}
               title={isMac ? 'Hide sidebar (⌘\\)' : 'Hide sidebar (Ctrl\\)'}
-            >
-              ←
-            </button>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text)', letterSpacing: '0.1em', flex: 1, textAlign: 'center' }}>write.6f.md</span>
+            >←</button>
+            <span className="sidebar-brand">write.6f.md</span>
             <button
+              className="btn-icon"
               onClick={newDoc}
-              style={iconBtnStyle}
               title={isMac ? 'New document (⌘⇧K)' : 'New document (Ctrl⇧K)'}
-            >
-              ＋
-            </button>
+            >＋</button>
           </div>
 
-          <div style={{ padding: '0.4rem 0.75rem', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-            <div style={{ position: 'relative' }}>
+          {/* Search */}
+          <div className="sidebar-search">
+            <div className="search-wrap">
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder={isMac ? "Search... (⌘⇧F)" : "Search... (Ctrl⇧F)"}
+                className="search-input"
+                placeholder={isMac ? 'Search... (⌘⇧F)' : 'Search... (Ctrl⇧F)'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -550,149 +483,86 @@ export default function App() {
                     }
                   }
                 }}
-                style={{
-                  width: '100%',
-                  fontSize: '0.75rem',
-                  fontFamily: 'var(--font-sans)',
-                  color: 'var(--text)',
-                  background: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 4,
-                  padding: '0.3rem 0.5rem',
-                  paddingRight: '1.5rem',
-                  boxSizing: 'border-box'
-                }}
               />
               {searchQuery && (
                 <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    searchInputRef.current?.focus();
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: '0.4rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', color: 'var(--text-muted)',
-                    cursor: 'pointer', fontSize: '0.7rem', padding: 0
-                  }}
+                  className="search-clear"
+                  onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
                   title="Clear search"
-                >
-                  ✕
-                </button>
+                >✕</button>
               )}
             </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
+          {/* Doc list */}
+          <div className="doc-list">
             {displayDocs.length === 0 && (
-              <p style={{ padding: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <p className="doc-list-empty">
                 {searchQuery ? 'No documents match your search.' : 'No documents yet.'}
               </p>
             )}
             {displayDocs.map(doc => (
               <div
                 key={doc.id}
-                className="doc-item"
+                className={`doc-item${doc.id === activeId ? ' doc-item--active' : ''}`}
                 onClick={() => {
                   commitRenameIfLeaving(renamingId, doc.id);
                   switchDoc(doc.id);
                   if (isMobile) setSidebarOpen(false);
                 }}
-                style={{
-                  padding: '0.5rem 1rem',
-                  cursor: 'pointer',
-                  background: doc.id === activeId ? 'var(--bg)' : 'transparent',
-                  borderLeft: doc.id === activeId ? '2px solid var(--border)' : '2px solid transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  gap: 8,
-                }}
               >
                 {renamingId === doc.id ? (
                   <input
                     autoFocus
+                    className="doc-rename-input"
                     value={renameValue}
                     onChange={e => setRenameValue(e.target.value)}
                     onMouseDown={e => e.stopPropagation()}
                     onClick={e => e.stopPropagation()}
                     onBlur={() => commitRename(doc.id)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        commitRename(doc.id);
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        cancelRename();
-                      }
-                    }}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: '0.82rem',
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--text)',
-                      background: 'transparent',
-                      border: '1px solid var(--border)',
-                      borderRadius: 3,
-                      padding: '0.15rem 0.25rem',
+                      if (e.key === 'Enter') { e.preventDefault(); commitRename(doc.id); }
+                      else if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
                     }}
                   />
                 ) : (
-                  <span
-                    style={{
-                      fontSize: '0.82rem',
-                      color: 'var(--text)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flex: 1,
-                      userSelect: 'none',
-                    }}
-                  >
+                  <span className="doc-title">
                     {doc.customTitle || doc.title || 'Untitled'}
                   </span>
                 )}
                 {renamingId !== doc.id && (
                   <button
+                    className="btn btn--dim"
+                    style={{ fontSize: '0.7rem' }}
                     onClick={e => {
                       e.stopPropagation();
                       commitRenameIfLeaving(renamingId, doc.id);
                       switchDoc(doc.id);
                       beginRename(doc);
                     }}
-                    style={{ ...btnStyle, fontSize: '0.7rem', opacity: 0.4, flexShrink: 0 }}
                     title="Rename"
                     aria-label="Rename document"
                   >✎</button>
                 )}
                 <button
+                  className="btn btn--dim"
+                  style={{ fontSize: '0.65rem' }}
                   onClick={e => {
                     e.stopPropagation();
                     commitRenameIfLeaving(renamingId, doc.id);
                     requestCloseDoc(doc.id);
                   }}
-                  style={{ ...btnStyle, fontSize: '0.65rem', opacity: 0.4, flexShrink: 0 }}
                   title="Delete"
                 >✕</button>
               </div>
             ))}
           </div>
 
-          {/* Bottom controls */}
-          <div style={{ padding: '0.6rem 0.75rem 0.7rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem' }}>
-            {/* Wrap width slider styled like a button */}
-            <div
-              style={{
-                ...pillBtnStyle,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'default',
-              }}
-              title="Max content width in pixels"
-            >
-              <span style={{ color: 'var(--text)' }}>Width</span>
+          {/* Footer controls */}
+          <div className="sidebar-footer">
+            {/* Width slider */}
+            <div className="width-control" title="Max content width in pixels">
+              <span className="width-label">Width</span>
               <input
                 className="wrap-slider"
                 style={{ flex: 1, minWidth: 0, margin: '0 0.5rem' }}
@@ -704,109 +574,58 @@ export default function App() {
                 onChange={(e) => setWrapWidth(Number(e.target.value))}
                 aria-label="Wrap width"
               />
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)', width: '3.5ch', textAlign: 'right' }}>
-                {wrapWidth}
-              </span>
+              <span className="width-value">{wrapWidth}</span>
             </div>
+
             {/* Mode row */}
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <div className="btn-row">
               <button
+                className={`btn-pill btn--flex${mode === 'visual' ? ' btn-pill--active' : ' btn-pill--inactive'}`}
                 onClick={() => { setMode('visual'); setVimMode(false); }}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  background: mode === 'visual' ? 'var(--bg)' : 'transparent',
-                  color: mode === 'visual' ? 'var(--text)' : 'var(--text-muted)',
-                }}
                 title={isMac ? 'Switch to Visual (⌘⇧E)' : 'Switch to Visual (Ctrl⇧E)'}
-              >
-                Visual
-              </button>
+              >Visual</button>
               <button
+                className={`btn-pill btn--flex${mode === 'raw' && !vimMode ? ' btn-pill--active' : ' btn-pill--inactive'}`}
                 onClick={() => { setMode('raw'); setVimMode(false); }}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  background: mode === 'raw' && !vimMode ? 'var(--bg)' : 'transparent',
-                  color: mode === 'raw' && !vimMode ? 'var(--text)' : 'var(--text-muted)',
-                }}
                 title={isMac ? 'Switch to Raw (⌘⇧E)' : 'Switch to Raw (Ctrl⇧E)'}
-              >
-                Raw
-              </button>
+              >Raw</button>
               <button
+                className={`btn-pill btn--flex${mode === 'raw' && vimMode ? ' btn-pill--active' : ' btn-pill--inactive'}`}
                 onClick={() => {
-                  if (mode === 'raw' && vimMode) {
-                    setVimMode(false);
-                    setRawFocusToken(t => t + 1);
-                  } else {
-                    setMode('raw');
-                    setVimMode(true);
-                    setRawFocusToken(t => t + 1);
-                  }
-                }}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  background: mode === 'raw' && vimMode ? 'var(--bg)' : 'transparent',
-                  color: mode === 'raw' && vimMode ? 'var(--text)' : 'var(--text-muted)',
+                  if (mode === 'raw' && vimMode) { setVimMode(false); setRawFocusToken(t => t + 1); }
+                  else { setMode('raw'); setVimMode(true); setRawFocusToken(t => t + 1); }
                 }}
                 title={isMac ? 'Raw + Vim (⌘⇧V)' : 'Raw + Vim (Ctrl⇧V)'}
-              >
-                Vim
-              </button>
+              >Vim</button>
             </div>
 
-            {/* Download row */}
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
+            {/* Action row */}
+            <div className="btn-row">
               <button
+                className="btn-pill btn--flex"
                 onClick={handlePrint}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  justifyContent: 'center',
-                  fontSize: '0.72rem',
-                  opacity: activeId ? 1 : 0.4,
-                  cursor: activeId ? 'pointer' : 'default',
-                }}
                 disabled={!activeId}
-                title={isMac ? "Print (⌘P)" : "Print (Ctrl+P)"}
-              >
-                Print
-              </button>
+                title={isMac ? 'Print (⌘P)' : 'Print (Ctrl+P)'}
+              >Print</button>
               <button
+                className="btn-pill btn--flex"
                 onClick={downloadCurrentDoc}
-                style={{
-                  ...pillBtnStyle,
-                  flex: 1,
-                  justifyContent: 'center',
-                  fontSize: '0.72rem',
-                  opacity: activeId ? 1 : 0.4,
-                  cursor: activeId ? 'pointer' : 'default',
-                }}
                 disabled={!activeId}
-                title={isMac ? "Download as .md (⌘⇧S)" : "Download as .md (Ctrl⇧S)"}
-              >
-                Download (.md)
-              </button>
+                title={isMac ? 'Download as .md (⌘⇧S)' : 'Download as .md (Ctrl⇧S)'}
+              >Download (.md)</button>
             </div>
 
-            {/* More section at the bottom */}
             <button
+              className="btn-pill btn-pill--full"
               onClick={() => setShortcutsOpen(true)}
-              style={{
-                ...pillBtnStyle,
-                width: '100%',
-                justifyContent: 'center',
-                marginTop: '0.1rem'
-              }}
               title={isMac ? 'More options & Shortcuts (⌘/)' : 'More options & Shortcuts (Ctrl/)'}
-            >
-              More...
-            </button>
+            >More...</button>
           </div>
+
+          {/* Resize handle */}
           {!isMobile && (
             <div
+              className="sidebar-resize-handle"
               onMouseDown={(e) => {
                 e.preventDefault();
                 isResizingSidebar.current = true;
@@ -815,14 +634,6 @@ export default function App() {
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
               }}
-              style={{
-                position: 'absolute',
-                top: 0,
-                right: 0,
-                width: 4,
-                height: '100%',
-                cursor: 'col-resize',
-              }}
             />
           )}
         </aside>
@@ -830,58 +641,17 @@ export default function App() {
 
       {/* Main */}
       <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          '--editor-max-width': `${wrapWidth}px`,
-        }}
+        className="main-panel"
+        style={{ '--editor-max-width': `${wrapWidth}px` }}
       >
-        {/* Editor area */}
-        <main
-          style={{
-            flex: 1,
-            overflow: 'hidden',
-            display: 'flex',
-            justifyContent: activeId ? 'flex-start' : 'center',
-          }}
-        >
+        <main className={`editor-area${!activeId ? ' editor-area--centered' : ''}`}>
           {!activeId ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '1rem',
-                color: 'var(--text-muted)',
-                height: '100%',
-              }}
-            >
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                no document selected
-              </span>
-              <button
-                onClick={newDoc}
-                style={{
-                  ...btnStyle,
-                  color: 'var(--text)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.8rem',
-                }}
-              >
-                create one →
-              </button>
+            <div className="editor-empty">
+              <span className="editor-empty-hint">no document selected</span>
+              <button className="btn btn--mono" onClick={newDoc}>create one →</button>
             </div>
           ) : mode === 'visual' ? (
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                overflowY: 'auto',
-              }}
-            >
+            <div className="editor-scroll">
               <WysiwygEditor
                 key={activeId}
                 content={content}
@@ -890,7 +660,7 @@ export default function App() {
               />
             </div>
           ) : (
-            <div style={{ width: '100%', height: '100%' }}>
+            <div className="editor-fill">
               <RawEditor
                 key={`${activeId}-${vimMode}`}
                 content={content}
@@ -904,72 +674,41 @@ export default function App() {
         </main>
       </div>
 
+      {/* Floating sidebar toggle */}
       {!sidebarOpen && (
         <button
+          className="btn-icon sidebar-toggle"
           onClick={() => setSidebarOpen(true)}
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            zIndex: 20,
-            ...iconBtnStyle,
-            padding: '0.15rem 0.3rem',
-          }}
           title={isMac ? 'Show sidebar (⌘\\)' : 'Show sidebar (Ctrl\\)'}
-        >
-          ☰
-        </button>
+        >☰</button>
       )}
 
-      {/* Pinned Stats & Storage */}
+      {/* Pinned stats */}
       {(statsPinned || storagePinned) && (
-        <div style={{
-          position: 'absolute',
-          bottom: 12,
-          right: 24,
-          display: 'flex',
-          gap: '1rem',
-          fontSize: '0.7rem',
-          color: 'var(--text-muted)',
-          background: 'var(--surface)',
-          padding: '0.4rem 0.8rem',
-          borderRadius: 999,
-          border: '1px solid var(--border)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          zIndex: 10,
-        }}>
+        <div className="pinned-stats">
           {statsPinned && (
-            <div style={{ display: 'flex', gap: '0.8rem' }}>
+            <div className="pinned-stats__counts">
               <span>{wordCount} words</span>
               <span>{charCount} chars</span>
             </div>
           )}
-          {statsPinned && storagePinned && <div style={{ width: 1, background: 'var(--border)' }} />}
+          {statsPinned && storagePinned && <div className="pinned-stats__divider" />}
           {storagePinned && storageUsage && (
             <span>{formatBytes(storageUsage.usage)} / {formatBytes(storageUsage.quota)}</span>
           )}
         </div>
       )}
 
+      {/* Delete confirm dialog */}
       {closeConfirmOpen && closeTargetDoc && (
         <div
-          onClick={e => {
-            if (e.target === e.currentTarget) setCloseConfirmOpen(false);
-          }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 40,
-          }}
+          className="overlay overlay--front"
+          onClick={e => { if (e.target === e.currentTarget) setCloseConfirmOpen(false); }}
         >
           <div
             ref={closeConfirmRef}
             tabIndex={-1}
+            className="dialog dialog--confirm"
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -983,232 +722,133 @@ export default function App() {
                 setCloseTargetId(null);
               }
             }}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              padding: '1.2rem 1.5rem',
-              width: 360,
-              maxWidth: '90vw',
-              boxShadow: '0 18px 40px rgba(0,0,0,0.45)',
-            }}
           >
-            <div style={{ marginBottom: '0.6rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)' }}>
-                Delete document?
-              </div>
+            <div className="dialog-header">
+              <div className="dialog-title">Delete document?</div>
               <button
-                onClick={() => {
-                  setCloseConfirmOpen(false);
-                  setCloseTargetId(null);
-                }}
-                style={{ ...iconBtnStyle, fontSize: '0.8rem' }}
+                className="btn-icon"
+                onClick={() => { setCloseConfirmOpen(false); setCloseTargetId(null); }}
                 title="Cancel (Esc)"
-              >
-                ✕
-              </button>
+              >✕</button>
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.9rem' }}>
+            <div className="dialog-body">
               This will delete{' '}
-              <span style={{ color: 'var(--text)', fontWeight: 500 }}>
-                {closeTargetDoc.customTitle || closeTargetDoc.title || 'Untitled'}
-              </span>
-              . This can’t be undone.
+              <strong>{closeTargetDoc.customTitle || closeTargetDoc.title || 'Untitled'}</strong>
+              . This can't be undone.
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', marginTop: '0.4rem' }}>
+            <div className="dialog-footer">
               <button
-                onClick={() => {
-                  setCloseConfirmOpen(false);
-                  setCloseTargetId(null);
-                }}
-                style={{ ...pillBtnStyle, paddingInline: '0.7rem' }}
-              >
-                Cancel
-              </button>
+                className="btn-pill"
+                style={{ paddingInline: '0.7rem' }}
+                onClick={() => { setCloseConfirmOpen(false); setCloseTargetId(null); }}
+              >Cancel</button>
               <button
+                className="btn-pill btn-pill--selected"
+                style={{ paddingInline: '0.7rem' }}
                 onClick={() => {
                   const id = closeTargetDoc.id;
                   setCloseConfirmOpen(false);
                   setCloseTargetId(null);
                   removeDoc(id);
                 }}
-                style={{
-                  ...pillBtnStyle,
-                  paddingInline: '0.7rem',
-                  background: 'var(--accent, var(--bg))',
-                  borderColor: 'var(--border)',
-                  color: 'var(--surface)',
-                }}
-              >
-                Delete
-              </button>
+              >Delete</button>
             </div>
-            <div style={{ marginTop: '0.6rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              Press Enter to confirm, Esc to cancel.
-            </div>
+            <div className="dialog-hint">Press Enter to confirm, Esc to cancel.</div>
           </div>
         </div>
       )}
 
+      {/* Shortcuts / More dialog */}
       {shortcutsOpen && (
         <div
-          onClick={e => {
-            if (e.target === e.currentTarget) setShortcutsOpen(false);
-          }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 30,
-          }}
+          className="overlay overlay--back"
+          onClick={e => { if (e.target === e.currentTarget) setShortcutsOpen(false); }}
         >
           <div
             ref={shortcutsRef}
             tabIndex={-1}
-            onKeyDown={e => {
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                setShortcutsOpen(false);
-              }
-            }}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              padding: '1.5rem 1.75rem',
-              width: 420,
-              maxWidth: '90vw',
-              boxShadow: '0 18px 40px rgba(0,0,0,0.45)',
-            }}
+            className="dialog dialog--shortcuts"
+            onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); setShortcutsOpen(false); } }}
           >
-            <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
-                More
-              </div>
-              <button
-                onClick={() => setShortcutsOpen(false)}
-                style={{ ...iconBtnStyle, fontSize: '0.8rem' }}
-                title="Close (Esc)"
-              >
-                ✕
-              </button>
+            <div className="dialog-header dialog-header--lg">
+              <div className="dialog-title dialog-title--lg">More</div>
+              <button className="btn-icon" onClick={() => setShortcutsOpen(false)} title="Close (Esc)">✕</button>
             </div>
 
             {/* Document Stats */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>Document Stats</div>
-              <button
-                onClick={() => setStatsPinned(p => !p)}
-                style={{ ...pillBtnStyle, fontSize: '0.7rem', padding: '0.15rem 0.5rem', color: statsPinned ? 'var(--text)' : 'var(--text-muted)' }}
-                title={statsPinned ? "Unpin from screen" : "Pin to screen"}
-              >
-                {statsPinned ? 'unpin' : 'pin'}
-              </button>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text)', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-              <div><strong>{wordCount}</strong> <span style={{ color: 'var(--text-muted)' }}>words</span></div>
-              <div><strong>{charCount}</strong> <span style={{ color: 'var(--text-muted)' }}>chars</span></div>
-              <div><strong>{readTime}</strong> <span style={{ color: 'var(--text-muted)' }}>min read</span></div>
+            <div className="section">
+              <div className="section-header">
+                <div className="section-title">Document Stats</div>
+                <button
+                  className={`btn-pill${statsPinned ? '' : ' btn-pill--muted'}`}
+                  style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}
+                  onClick={() => setStatsPinned(p => !p)}
+                  title={statsPinned ? 'Unpin from screen' : 'Pin to screen'}
+                >{statsPinned ? 'unpin' : 'pin'}</button>
+              </div>
+              <div className="stats-row">
+                <div><strong>{wordCount}</strong> <span className="stats-muted">words</span></div>
+                <div><strong>{charCount}</strong> <span className="stats-muted">chars</span></div>
+                <div><strong>{readTime}</strong> <span className="stats-muted">min read</span></div>
+              </div>
             </div>
 
             {/* Storage Usage */}
             {storageUsage && (
-              <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>Storage Usage</div>
+              <div className="section">
+                <div className="section-header">
+                  <div className="section-title">Storage Usage</div>
                   <button
+                    className={`btn-pill${storagePinned ? '' : ' btn-pill--muted'}`}
+                    style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }}
                     onClick={() => setStoragePinned(p => !p)}
-                    style={{ ...pillBtnStyle, fontSize: '0.7rem', padding: '0.15rem 0.5rem', color: storagePinned ? 'var(--text)' : 'var(--text-muted)' }}
-                    title={storagePinned ? "Unpin from screen" : "Pin to screen"}
-                  >
-                    {storagePinned ? 'unpin' : 'pin'}
-                  </button>
+                    title={storagePinned ? 'Unpin from screen' : 'Pin to screen'}
+                  >{storagePinned ? 'unpin' : 'pin'}</button>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textAlign: 'right' }}>
-                  {formatBytes(storageUsage.usage)} / {formatBytes(storageUsage.quota)}
-                </div>
-                <div style={{ width: '100%', height: 6, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ width: `${Math.min(100, (storageUsage.usage / storageUsage.quota) * 100)}%`, height: '100%', background: 'var(--accent)' }} />
+                <div className="storage-amount">{formatBytes(storageUsage.usage)} / {formatBytes(storageUsage.quota)}</div>
+                <div className="storage-bar">
+                  <div
+                    className="storage-bar__fill"
+                    style={{ width: `${Math.min(100, (storageUsage.usage / storageUsage.quota) * 100)}%` }}
+                  />
                 </div>
               </div>
             )}
 
             {/* Preferences */}
-            <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.6rem' }}>Preferences</div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', width: '80px', color: 'var(--text-muted)', alignSelf: 'center' }}>Theme</span>
+            <div className="section">
+              <div className="section-title">Preferences</div>
+              <div className="prefs-row">
+                <span className="prefs-label">Theme</span>
                 <button
+                  className={`btn-pill btn--flex${theme === 'light' ? ' btn-pill--selected' : ''}`}
                   onClick={() => theme !== 'light' && toggleTheme()}
-                  style={{ ...pillBtnStyle, flex: 1, background: theme === 'light' ? 'var(--accent)' : 'transparent', color: theme === 'light' ? 'var(--surface)' : 'var(--text)' }}
                 >Light</button>
                 <button
+                  className={`btn-pill btn--flex${theme === 'dark' ? ' btn-pill--selected' : ''}`}
                   onClick={() => theme !== 'dark' && toggleTheme()}
-                  style={{ ...pillBtnStyle, flex: 1, background: theme === 'dark' ? 'var(--accent)' : 'transparent', color: theme === 'dark' ? 'var(--surface)' : 'var(--text)' }}
                 >Dark</button>
               </div>
             </div>
 
             {/* Keyboard shortcuts */}
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem' }}>Keyboard shortcuts</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.8rem' }}>
-              {isMac ? '⌘' : 'Ctrl'} shortcuts work anywhere in the app.
-            </div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.75rem',
-              }}
-            >
-              {/* Left Column */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>New doc</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'K']} />
+            <div>
+              <div className="section-title">Keyboard shortcuts</div>
+              <div className="shortcuts-hint">{isMac ? '⌘' : 'Ctrl'} shortcuts work anywhere in the app.</div>
+              <div className="shortcuts-grid">
+                <div className="shortcuts-col">
+                  <div className="shortcut-row"><span>New doc</span><ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'K']} /></div>
+                  <div className="shortcut-row"><span>Rename</span><ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'R']} /></div>
+                  <div className="shortcut-row"><span>Close doc</span><ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'X']} /></div>
+                  <div className="shortcut-row"><span>Search</span><ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'F']} /></div>
+                  <div className="shortcut-row"><span>Print</span><ShortcutKeys isMac={isMac} keys={['Mod', 'P']} /></div>
+                  <div className="shortcut-row"><span>Download (MD)</span><ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} /></div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Rename</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'R']} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Close doc</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'X']} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Search</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'F']} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Print</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'P']} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Download (MD)</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'S']} />
-                </div>
-              </div>
-              {/* Right Column */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Visual/Raw</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'E']} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Raw+Vim</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'V']} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>Sidebar</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', '\\']} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                  <span>More Menu</span>
-                  <ShortcutKeys isMac={isMac} keys={['Mod', '/']} />
+                <div className="shortcuts-col">
+                  <div className="shortcut-row"><span>Visual/Raw</span><ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'E']} /></div>
+                  <div className="shortcut-row"><span>Raw+Vim</span><ShortcutKeys isMac={isMac} keys={['Mod', 'Shift', 'V']} /></div>
+                  <div className="shortcut-row"><span>Sidebar</span><ShortcutKeys isMac={isMac} keys={['Mod', '\\']} /></div>
+                  <div className="shortcut-row"><span>More Menu</span><ShortcutKeys isMac={isMac} keys={['Mod', '/']} /></div>
                 </div>
               </div>
             </div>
@@ -1219,36 +859,6 @@ export default function App() {
   );
 }
 
-const btnStyle = {
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--text)',
-  cursor: 'pointer',
-  padding: '0.25rem 0.4rem',
-  borderRadius: 4,
-  fontFamily: 'var(--font-sans)',
-  fontSize: '0.8rem',
-  lineHeight: 1,
-  transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease',
-};
-
-const iconBtnStyle = {
-  ...btnStyle,
-  padding: '0.2rem 0.45rem',
-  borderRadius: 999,
-};
-
-const pillBtnStyle = {
-  ...btnStyle,
-  borderRadius: 999,
-  border: '1px solid var(--border)',
-  padding: '0.3rem 0.6rem',
-  fontSize: '0.72rem',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
 function ShortcutKeys({ isMac, keys }) {
   const display = keys.map((k) => {
     if (k === 'Mod') return isMac ? '⌘' : 'Ctrl';
@@ -1256,23 +866,9 @@ function ShortcutKeys({ isMac, keys }) {
     return k;
   });
   return (
-    <span style={{ display: 'flex', gap: '0.25rem' }}>
+    <span className="kbd-row">
       {display.map((label, i) => (
-        <kbd
-          key={`${label}-${i}`}
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '0.7rem',
-            padding: '0.15rem 0.3rem',
-            borderRadius: 3,
-            border: '1px solid var(--border)',
-            background: 'var(--bg)',
-            minWidth: 16,
-            textAlign: 'center',
-          }}
-        >
-          {label}
-        </kbd>
+        <kbd key={`${label}-${i}`} className="key">{label}</kbd>
       ))}
     </span>
   );
