@@ -40,6 +40,7 @@ export default function RawEditor({ content, onChange, vimMode, theme, focusToke
           onChangeRef.current(update.state.doc.toString());
         }
       }),
+      EditorView.lineWrapping,
       EditorView.theme({
         '&': { height: '100%', background: 'transparent' },
         '.cm-content': { fontFamily: 'var(--font-mono)', fontSize: '0.9rem' },

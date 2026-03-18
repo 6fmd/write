@@ -94,7 +94,7 @@ html, body, #root {
   padding: 4rem 2rem;
 }
 
-.tiptap-editor p { margin-bottom: 1em; }
+.tiptap-editor p { margin-bottom: 1em; text-align: justify; }
 .tiptap-editor p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--text-muted);
