@@ -190,6 +190,40 @@ html, body, #root {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+/* Mobile sidebar: larger touch targets */
+.sidebar-mobile button {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  padding: 0.55rem 0.9rem !important;
+  font-size: 0.9rem !important;
+}
+
+.sidebar-mobile .doc-item {
+  padding: 0.8rem 1rem !important;
+  min-height: 52px;
+}
+
+.sidebar-mobile .doc-item span {
+  font-size: 0.9rem !important;
+}
+
+.sidebar-mobile input[type="text"] {
+  padding: 0.55rem 0.6rem !important;
+  font-size: 0.85rem !important;
+}
+
+@media (max-width: 767px) {
+  .tiptap-editor {
+    padding: 2rem 1rem;
+  }
+  .cm-editor {
+    padding: 0 1rem;
+  }
+  .cm-content {
+    padding: 2rem 0;
+  }
+}
+
 @media print {
   aside,
   button[title*="sidebar"],

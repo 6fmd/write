@@ -15,13 +15,14 @@ export default function App() {
   const [docs, setDocs] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [storageUsage, setStorageUsage] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [maxWidthLimit, setMaxWidthLimit] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1800);
   const [wrapWidth, setWrapWidth] = useState(() => {
     const limit = typeof window !== 'undefined' ? window.innerWidth : 1800;
     try {
       const raw = localStorage.getItem('write-md:wrapWidthPx');
       const n = raw ? Number(raw) : NaN;
-      return Number.isFinite(n) ? Math.min(limit, Math.max(520, n)) : Math.min(limit, 980);
+      return Number.isFinite(n) ? Math.min(limit, Math.max(200, n)) : Math.min(limit, 980);
     } catch {
       return Math.min(limit, 980);
     }
@@ -29,8 +30,9 @@ export default function App() {
 
   useEffect(() => {
     function onResize() {
+      setIsMobile(window.innerWidth < 768);
       setMaxWidthLimit(window.innerWidth);
-      setWrapWidth(prev => Math.min(window.innerWidth, Math.max(520, prev)));
+      setWrapWidth(prev => Math.min(window.innerWidth, Math.max(200, prev)));
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -69,7 +71,7 @@ export default function App() {
   const [vimMode, setVimMode] = useState(false);
   const [rawFocusToken, setRawFocusToken] = useState(0);
   const [visualFocusToken, setVisualFocusToken] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -84,6 +86,18 @@ export default function App() {
     try { return localStorage.getItem('write-md:storagePinned') === 'true'; }
     catch { return false; }
   });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try {
+      const raw = localStorage.getItem('write-md:sidebarWidth');
+      const n = raw ? Number(raw) : NaN;
+      return Number.isFinite(n) ? Math.min(480, Math.max(160, n)) : 220;
+    } catch {
+      return 220;
+    }
+  });
+  const isResizingSidebar = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(0);
   const autosaveTimer = useRef(null);
   const closeConfirmRef = useRef(null);
   const shortcutsRef = useRef(null);
@@ -187,6 +201,34 @@ export default function App() {
       // ignore
     }
   }, [wrapWidth]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('write-md:sidebarWidth', String(sidebarWidth));
+    } catch {
+      // ignore
+    }
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    function onMouseMove(e) {
+      if (!isResizingSidebar.current) return;
+      const newWidth = Math.min(480, Math.max(160, resizeStartWidth.current + e.clientX - resizeStartX.current));
+      setSidebarWidth(newWidth);
+    }
+    function onMouseUp() {
+      if (!isResizingSidebar.current) return;
+      isResizingSidebar.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -412,6 +454,13 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      {/* Mobile sidebar backdrop */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.45)' }}
+        />
+      )}
       {/* Sidebar */}
       {sidebarOpen && (
         <aside
@@ -449,12 +498,15 @@ export default function App() {
               fetchUsage();
             }
           }}
+          className={isMobile ? 'sidebar sidebar-mobile' : 'sidebar'}
           style={{
-            width: 220,
+            width: isMobile ? '100vw' : sidebarWidth,
             background: isDraggingOverSidebar ? 'var(--bg)' : 'var(--surface)',
             borderRight: isDraggingOverSidebar ? '2px dashed var(--border)' : '1px solid var(--border)',
             display: 'flex', flexDirection: 'column', flexShrink: 0,
-            transition: 'background 0.2s, border 0.2s'
+            position: 'relative',
+            transition: 'background 0.2s, border 0.2s',
+            ...(isMobile ? { position: 'fixed', top: 0, left: 0, height: '100%', zIndex: 100 } : {}),
           }}>
           <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
             <button
@@ -494,6 +546,7 @@ export default function App() {
                     if (displayDocs.length > 0) {
                       switchDoc(displayDocs[0].id);
                       searchInputRef.current?.blur();
+                      if (isMobile) setSidebarOpen(false);
                     }
                   }
                 }}
@@ -541,9 +594,11 @@ export default function App() {
             {displayDocs.map(doc => (
               <div
                 key={doc.id}
+                className="doc-item"
                 onClick={() => {
                   commitRenameIfLeaving(renamingId, doc.id);
                   switchDoc(doc.id);
+                  if (isMobile) setSidebarOpen(false);
                 }}
                 style={{
                   padding: '0.5rem 1rem',
@@ -642,8 +697,8 @@ export default function App() {
                 className="wrap-slider"
                 style={{ flex: 1, minWidth: 0, margin: '0 0.5rem' }}
                 type="range"
-                min={520}
-                max={Math.max(520, maxWidthLimit)}
+                min={200}
+                max={Math.max(200, maxWidthLimit)}
                 step={20}
                 value={wrapWidth}
                 onChange={(e) => setWrapWidth(Number(e.target.value))}
@@ -750,6 +805,26 @@ export default function App() {
               More...
             </button>
           </div>
+          {!isMobile && (
+            <div
+              onMouseDown={(e) => {
+                e.preventDefault();
+                isResizingSidebar.current = true;
+                resizeStartX.current = e.clientX;
+                resizeStartWidth.current = sidebarWidth;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+              }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 4,
+                height: '100%',
+                cursor: 'col-resize',
+              }}
+            />
+          )}
         </aside>
       )}
 
