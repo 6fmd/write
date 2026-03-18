@@ -10,12 +10,26 @@ import {
 const AUTOSAVE_DELAY = 800;
 
 export default function App() {
-  const [docs, setDocs] = useState({});
-  const [activeId, setActiveId] = useState(null);
-  const [content, setContent] = useState('');
+  const [docs, setDocs] = useState(() => listDocs());
+  const [activeId, setActiveId] = useState(() => {
+    const stored = listDocs();
+    const lastId = getActiveDocId();
+    if (lastId && stored[lastId]) return lastId;
+    const ids = Object.keys(stored);
+    return ids.length > 0 ? ids[0] : null;
+  });
+  const [content, setContent] = useState(() => {
+    const stored = listDocs();
+    const lastId = getActiveDocId();
+    if (lastId && stored[lastId]) return stored[lastId].content ?? '';
+    const ids = Object.keys(stored);
+    if (ids.length > 0) return stored[ids[0]]?.content ?? '';
+    return '';
+  });
   const [mode, setMode] = useState('visual'); // 'visual' | 'raw'
   const [vimMode, setVimMode] = useState(false);
   const [rawFocusToken, setRawFocusToken] = useState(0);
+  const [visualFocusToken, setVisualFocusToken] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
@@ -24,32 +38,18 @@ export default function App() {
   const [closeTargetId, setCloseTargetId] = useState(null);
   const autosaveTimer = useRef(null);
   const closeConfirmRef = useRef(null);
+  const shortcutsRef = useRef(null);
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
   const { theme, toggle: toggleTheme } = useTheme();
-
-  // Load docs from localStorage on mount
-  useEffect(() => {
-    const stored = listDocs();
-    setDocs(stored);
-    const lastId = getActiveDocId();
-    if (lastId && stored[lastId]) {
-      setActiveId(lastId);
-      setContent(stored[lastId].content ?? '');
-    } else {
-      const ids = Object.keys(stored);
-      if (ids.length > 0) {
-        setActiveId(ids[0]);
-        setContent(stored[ids[0]].content ?? '');
-      }
-    }
-  }, []);
 
   function newDoc() {
     const id = generateId();
     saveDoc(id, { title: 'Untitled', content: '', customTitle: null, updatedAt: new Date().toISOString() });
     setDocs(listDocs());
     switchDoc(id, '');
+    if (mode === 'raw') setRawFocusToken(t => t + 1);
+    else setVisualFocusToken(t => t + 1);
   }
 
   function switchDoc(id, forcedContent) {
@@ -155,7 +155,13 @@ export default function App() {
       // Cmd/Ctrl + Shift + V — switch to Raw + Vim
       if (e.shiftKey && key === 'v') {
         e.preventDefault();
-        // Force Raw + Vim immediately
+        // If already in Raw+Vim, this exits Vim back to normal Raw.
+        if (mode === 'raw' && vimMode) {
+          setVimMode(false);
+          setRawFocusToken(t => t + 1);
+          return;
+        }
+        // Otherwise, force Raw + Vim immediately.
         setMode('raw');
         setVimMode(true);
         setRawFocusToken(t => t + 1);
@@ -201,7 +207,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeydown, true);
     return () => window.removeEventListener('keydown', handleKeydown, true);
-  }, [isMac, mode, downloadCurrentDoc, newDoc, activeDoc, beginRename]);
+  }, [isMac, mode, vimMode, activeId, downloadCurrentDoc, newDoc, activeDoc, beginRename]);
 
   // Focus the close-confirm dialog so Enter/Esc work immediately
   useEffect(() => {
@@ -209,6 +215,26 @@ export default function App() {
       closeConfirmRef.current.focus();
     }
   }, [closeConfirmOpen]);
+
+  // Focus the shortcuts dialog so Esc works immediately
+  useEffect(() => {
+    if (shortcutsOpen && shortcutsRef.current) {
+      shortcutsRef.current.focus();
+    }
+  }, [shortcutsOpen]);
+
+  // Ensure Esc closes the shortcuts menu even if focus is elsewhere
+  useEffect(() => {
+    if (!shortcutsOpen) return;
+    function onKeydown(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShortcutsOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onKeydown, true);
+    return () => window.removeEventListener('keydown', onKeydown, true);
+  }, [shortcutsOpen]);
 
   const closeTargetDoc = closeTargetId ? docs[closeTargetId] : null;
 
@@ -331,7 +357,7 @@ export default function App() {
               title={
                 mode === 'raw'
                   ? (isMac ? 'Switch to Raw + Vim (⌘⇧V)' : 'Switch to Raw + Vim (Ctrl⇧V)')
-                  : 'Vim mode (Raw only)'
+                  : (isMac ? 'Vim mode (Raw only) — use ⌘⇧V' : 'Vim mode (Raw only) — use Ctrl⇧V')
               }
             >
               <span>Vim mode</span>
@@ -480,7 +506,12 @@ export default function App() {
                 justifyContent: 'flex-start',
               }}
             >
-              <WysiwygEditor key={activeId} content={content} onChange={handleContentChange} />
+              <WysiwygEditor
+                key={activeId}
+                content={content}
+                onChange={handleContentChange}
+                focusToken={visualFocusToken}
+              />
             </div>
           ) : (
             <div style={{ width: '100%', height: '100%' }}>
@@ -600,6 +631,7 @@ export default function App() {
                   paddingInline: '0.7rem',
                   background: 'var(--accent, var(--bg))',
                   borderColor: 'var(--border)',
+                  color: 'var(--surface)',
                 }}
               >
                 Delete
@@ -629,13 +661,14 @@ export default function App() {
           }}
         >
             <div
+              ref={shortcutsRef}
               tabIndex={-1}
               onKeyDown={e => {
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                setShortcutsOpen(false);
-              }
-            }}
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setShortcutsOpen(false);
+                }
+              }}
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',

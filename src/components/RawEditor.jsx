@@ -10,7 +10,10 @@ export default function RawEditor({ content, onChange, vimMode, theme, focusToke
   const containerRef = useRef(null);
   const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (!containerRef.current) return;

@@ -5,7 +5,7 @@ import Typography from '@tiptap/extension-typography';
 import { Markdown } from 'tiptap-markdown';
 import { useEffect } from 'react';
 
-export default function WysiwygEditor({ content, onChange }) {
+export default function WysiwygEditor({ content, onChange, focusToken }) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -35,6 +35,12 @@ export default function WysiwygEditor({ content, onChange }) {
       editor.commands.setContent(content ?? '');
     }
   }, [content, editor]);
+
+  // Focus editor when requested by parent (e.g. after creating a new document)
+  useEffect(() => {
+    if (!editor) return;
+    editor.commands.focus('start');
+  }, [focusToken, editor]);
 
   return <EditorContent editor={editor} style={{ height: '100%' }} />;
 }
