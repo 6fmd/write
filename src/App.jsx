@@ -104,6 +104,7 @@ export default function App() {
   const autosaveTimer = useRef(null);
   const closeConfirmRef = useRef(null);
   const shortcutsRef = useRef(null);
+  const shortcutsWasOpenRef = useRef(false);
   const searchInputRef = useRef(null);
 
   const isMac = typeof navigator !== 'undefined' && navigator.platform.includes('Mac');
@@ -148,6 +149,8 @@ export default function App() {
     setActiveDocId(id);
     const c = forcedContent !== undefined ? forcedContent : (docs[id]?.content ?? '');
     setContent(c);
+    if (mode === 'raw') setRawFocusToken(t => t + 1);
+    else setVisualFocusToken(t => t + 1);
   }
 
   async function removeDoc(id) {
@@ -368,8 +371,15 @@ export default function App() {
   }, [closeConfirmOpen]);
 
   useEffect(() => {
-    if (shortcutsOpen && shortcutsRef.current) shortcutsRef.current.focus();
-  }, [shortcutsOpen]);
+    if (shortcutsOpen) {
+      shortcutsWasOpenRef.current = true;
+      if (shortcutsRef.current) shortcutsRef.current.focus();
+    } else if (shortcutsWasOpenRef.current) {
+      shortcutsWasOpenRef.current = false;
+      if (mode === 'raw') setRawFocusToken(t => t + 1);
+      else setVisualFocusToken(t => t + 1);
+    }
+  }, [shortcutsOpen, mode]);
 
   useEffect(() => {
     if (!shortcutsOpen) return;
